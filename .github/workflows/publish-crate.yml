@@ -44,7 +44,7 @@ jobs:
           toolchain: ${{env.RUST_VERSION}}
 
       - name: Run version up and publish script
-        run: ./.github/scripts/version-up.sh "${{ github.event.inputs.crate }}" "${{ github.event.inputs.version-part }}" "$GIT_EMAIL"
+        run: ./scripts/version-up.sh "${{ github.event.inputs.crate }}" "${{ github.event.inputs.version-part }}" "$GIT_EMAIL"
 
       - name: Load crate version from file
         id: get-version
