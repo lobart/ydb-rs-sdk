@@ -94,6 +94,7 @@ function bump_version() {
   CRATES+=("$CRATE_NAME")
 
   mkdir -p .crate-versions
+  echo "Writing $(VERSION) to file $(CRATE_NAME)"
   echo "$VERSION" > ".crate-versions/$CRATE_NAME"
 
   case "$CRATE_NAME" in
