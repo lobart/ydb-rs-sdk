@@ -3,7 +3,7 @@
 set -eux
 
 CRATE_NAME="$1"
-VERSION_OR_PART="$2"
+VERSION="$2"
 GIT_EMAIL="$3"
 
 declare -a GIT_TAGS
@@ -15,53 +15,22 @@ function git_setup() {
 }
 
 function publish_crate() {
-  local CRATE_NAME="$1"
+  local CRATE="$1"
   (
-    cd "$CRATE_NAME"
+    cd "$CRATE"
     cargo publish
   )
 }
 
-function version_get() {
-  local CRATE_NAME="$1"
-  grep "^version\\s*=" "$CRATE_NAME/Cargo.toml" | cut -d '"' -f 2
-}
-
-function version_increment() {
-  local VERSION="$1"
-  local UP_PART="$2"
-
-  local MAJOR MINOR PATCH
-  IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
-
-  case "$UP_PART" in
-    major)
-      MAJOR=$((MAJOR+1))
-      MINOR=0
-      PATCH=0
-      ;;
-    minor)
-      MINOR=$((MINOR+1))
-      PATCH=0
-      ;;
-    patch)
-      PATCH=$((PATCH+1))
-      ;;
-    *)
-      echo "Invalid version part: $UP_PART"
-      exit 1
-  esac
-
-  echo "$MAJOR.$MINOR.$PATCH"
-}
-
 function version_set() {
-  local CRATE_NAME="$1"
+  local CRATE="$1"
   local VERSION="$2"
 
-  sed -i.bak -E "s/^version\s*=.*/version = \"$VERSION\"/" "$CRATE_NAME/Cargo.toml"
-  rm "$CRATE_NAME/Cargo.toml.bak"
+  # Update version in Cargo.toml
+  sed -i.bak -E "s/^version\s*=.*/version = \"$VERSION\"/" "$CRATE/Cargo.toml"
+  rm -f "$CRATE/Cargo.toml.bak"
 
+  # Update version in README if needed
   sed -i.bak -E "s/^ydb\s*=.*/ydb = \"$VERSION\"/" README.md || true
   rm -f README.md.bak
 }
@@ -76,78 +45,50 @@ function version_dep_set() {
   done
 }
 
-function bump_version() {
-  local CRATE_NAME="$1"
-  local VERSION_PART="$2"
+function handle_crate_version() {
+  local CRATE="$1"
+  local VERSION="$2"
 
-  local CURRENT VERSION
-  CURRENT=$(version_get "$CRATE_NAME")
-  VERSION=$(version_increment "$CURRENT" "$VERSION_PART")
+  version_set "$CRATE" "$VERSION"
+  GIT_TAGS+=("$CRATE-$VERSION")
+  CRATES+=("$CRATE")
 
-  version_set "$CRATE_NAME" "$VERSION"
-  GIT_TAGS+=("$CRATE_NAME-$VERSION")
-  CRATES+=("$CRATE_NAME")
-
-  case "$CRATE_NAME" in
+  case "$CRATE" in
     ydb) version_dep_set "ydb" "$VERSION" ;;
     ydb-grpc) version_dep_set "ydb-grpc" "$VERSION" ;;
     ydb-grpc-helpers) version_dep_set "ydb-grpc-helpers" "$VERSION" ;;
-    *) echo "Unexpected crate name '$CRATE_NAME'"; exit 1 ;;
+    *) echo "Unexpected crate name: $CRATE"; exit 1 ;;
   esac
-
-  echo "$VERSION"
 }
 
-# ----------------------
-# MAIN ENTRYPOINT
-# ----------------------
+# ---------------------
+# Script execution
+# ---------------------
 
 git_setup
 
-if [[ "$VERSION_OR_PART" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-  # -----------------------
-  # Mode: Tag push (version is passed directly)
-  # -----------------------
-  TAG_VERSION="$VERSION_OR_PART"
-  ACTUAL_VERSION=$(version_get "$CRATE_NAME")
+handle_crate_version "$CRATE_NAME" "$VERSION"
 
-  if [[ "$ACTUAL_VERSION" != "$TAG_VERSION" ]]; then
-    echo "Error: Version mismatch — tag says $TAG_VERSION but $CRATE_NAME/Cargo.toml has $ACTUAL_VERSION"
-    exit 1
-  fi
+# Rebuild lock file
+cargo build --workspace --all-targets
 
-  echo "Verified version $ACTUAL_VERSION for $CRATE_NAME"
+# Commit and tag
+git add .
+git commit -m "Set version to $VERSION for $CRATE_NAME"
+for TAG in "${GIT_TAGS[@]}"; do
+  git tag "$TAG"
+done
 
-  cargo build --workspace --all-targets
+# Push changes + tags before publishing
+git push origin HEAD
+git push origin --tags
 
-  publish_crate "$CRATE_NAME"
+# Publish all crates
+for CRATE in "${CRATES[@]}"; do
+  publish_crate "$CRATE"
+done
 
-  if [[ "$CRATE_NAME" == "ydb" ]]; then
-    echo "$ACTUAL_VERSION" > .crate-version
-  fi
-
-else
-  # -----------------------
-  # Mode: Version bump (patch/minor)
-  # -----------------------
-  VERSION=$(bump_version "$CRATE_NAME" "$VERSION_OR_PART")
-
-  cargo build --workspace --all-targets
-
-  git add .
-  git commit -m "bump version for $CRATE_NAME, $VERSION_OR_PART"
-  for TAG in "${GIT_TAGS[@]}"; do
-    git tag "$TAG"
-  done
-
-  git push origin --tags
-  git push
-
-  for CRATE in "${CRATES[@]}"; do
-    publish_crate "$CRATE"
-  done
-
-  if [[ "$CRATE_NAME" == "ydb" ]]; then
-    echo "$VERSION" > .crate-version
-  fi
+# Output version to file for GitHub Release step
+if [[ "$CRATE_NAME" == "ydb" ]]; then
+  echo "$VERSION" > .crate-version
 fi
