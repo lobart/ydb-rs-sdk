@@ -1,4 +1,5 @@
-name: Publish rust crate to crates.io
+name: Publish Rust Crate to crates.io
+
 env:
   CARGO_TERM_COLOR: always
   RUST_VERSION: 1.88.0
@@ -8,71 +9,59 @@ on:
   push:
     tags:
       - 'ydb-*'
-  workflow_dispatch:
-    inputs:
-      crate:
-        description: Publish crate to crates.io
-        required: true
-        type: choice
-        default: ydb
-        options:
-          - ydb
-          - ydb-grpc
-          - ydb-grpc-helpers
-      version-part:
-        description: "Part of version to changes major.minor.patch (can select patch or minor only)"
-        required: true
-        type: choice
-        default: patch
-        options:
-          - patch
-          - minor
 
 permissions:
   contents: write
 
 jobs:
   publishCrate:
+    name: Publish Crate to crates.io
     runs-on: ubuntu-24.04
     env:
       GIT_EMAIL: ${{ github.actor }}@users.noreply.github.com
       CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+    outputs:
+      crate-version: ${{ steps.get-version.outputs.crate-version }}
+      crate-name: ${{ steps.params.outputs.crate }}
+
     steps:
-      - name: Install fixed rust version
+      - name: Install Rust
         uses: dtolnay/rust-toolchain@v1
         with:
-          toolchain: ${{env.RUST_VERSION}}
+          toolchain: ${{ env.RUST_VERSION }}
 
       - name: Checkout
         uses: actions/checkout@v4
         with:
           submodules: true
+          fetch-depth: 0  # Ensure full history so tags are available
 
-      - name: Determine crate & version from tag
+      - name: Extract crate and version from tag
         id: params
         run: |
-          TAG="${GITHUB_REF_NAME}"   
-          CRATE="${TAG%-*}"          
-          VERSION="${TAG##*-}"       
+          TAG="${GITHUB_REF_NAME}"
+          CRATE="${TAG%%-*}"
+          VERSION="${TAG#*-}"
           echo "crate=$CRATE" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Run version up and publish script
+      - name: Run publish script
         run: ./.github/scripts/version-up.sh "${{ steps.params.outputs.crate }}" "${{ steps.params.outputs.version }}" "$GIT_EMAIL"
 
-      - name: Load crate version from file
+      - name: Output version for release
         id: get-version
         run: |
           if [[ -f .crate-version ]]; then
             echo "crate-version=$(cat .crate-version)" >> "$GITHUB_OUTPUT"
-          else
-            echo "No version bump, skipping release."
           fi
-          
+
   release:
-    if: needs.publishCrate.outputs.crate-version != '' && github.event.inputs.crate == 'ydb'
+    name: Create GitHub Release
+    if: needs.publishCrate.outputs.crate-version != '' && needs.publishCrate.outputs.crate-name == 'ydb'
     needs: publishCrate
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -82,7 +71,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
         run: |
           TAG="ydb-${{ needs.publishCrate.outputs.crate-version }}"
-          echo "Creating release for tag $TAG"
           gh release create "$TAG" \
             --title "$TAG" \
             --generate-notes
