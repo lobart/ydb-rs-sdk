@@ -55,6 +55,8 @@ jobs:
         run: |
           if [[ -f .crate-versions/ydb ]]; then
             echo "crate_version_ydb=$(cat .crate-versions/ydb)" >> "$GITHUB_OUTPUT"
+            echo ${{ needs.publishCrate.outputs.crate-version-ydb }}
+            echo "version"
           else
             echo "No version bump for crate ydb, skipping release."
           fi
