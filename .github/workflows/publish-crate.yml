@@ -48,16 +48,17 @@ jobs:
         with:
           submodules: true
 
-      - name: Determine crate and bump part
+      - name: Determine crate & version from tag
         id: params
         run: |
-          TAG="${GITHUB_REF##*/}"
-          CRATE="${TAG%-*}"
+          TAG="${GITHUB_REF_NAME}"   
+          CRATE="${TAG%-*}"          
+          VERSION="${TAG##*-}"       
           echo "crate=$CRATE" >> "$GITHUB_OUTPUT"
-          echo "version-part=patch" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Run version up and publish script
-        run: ./.github/scripts/version-up.sh "${{ github.event.inputs.crate }}" "${{ github.event.inputs.version-part }}" "$GIT_EMAIL"
+        run: ./.github/scripts/version-up.sh "${{ github.params.outputs.crate }}" "${{ steps.params.outputs.version }}" "$GIT_EMAIL"
 
       - name: Load crate version from file
         id: get-version
