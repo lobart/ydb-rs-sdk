@@ -92,7 +92,7 @@ fn fix_generated_files(dir: &str) -> io::Result<()> {
         let item = item?;
         let item_path = item.path().to_str().unwrap_or("<empty>");
         if !item.metadata()?.is_file() {
-            println!("skip not file: '{}'", item_path);
+            println!("skip not file: '{item_path}'");
             continue;
         }
         fix_generated_file(item.path())?;
