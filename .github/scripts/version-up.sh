@@ -25,7 +25,7 @@ function publish_crate() {
     local CRATE_NAME="$1"
     (
       cd "$CRATE_NAME"
-      cargo publish
+#      cargo publish
     )
 }
 
