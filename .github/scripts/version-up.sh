@@ -14,13 +14,13 @@ function git_setup() {
   git config user.email "$GIT_EMAIL"
 }
 
-function publish_crate() {
-  local CRATE="$1"
-  (
-    cd "$CRATE"
-    cargo publish
-  )
-}
+#function publish_crate() {
+#  local CRATE="$1"
+#  (
+#    cd "$CRATE"
+#    cargo publish
+#  )
+#}
 
 function version_set() {
   local CRATE="$1"
@@ -75,18 +75,14 @@ cargo build --workspace --all-targets
 # Commit and tag
 git add .
 git commit -m "Set version to $VERSION for $CRATE_NAME"
-for TAG in "${GIT_TAGS[@]}"; do
-  git tag "$TAG"
-done
 
-# Push changes + tags before publishing
+# Push changes
 git push origin HEAD
-git push origin --tags
 
 # Publish all crates
-for CRATE in "${CRATES[@]}"; do
-  publish_crate "$CRATE"
-done
+  #for CRATE in "${CRATES[@]}"; do
+   # publish_crate "$CRATE"
+  #done
 
 # Output version to file for GitHub Release step
 if [[ "$CRATE_NAME" == "ydb" ]]; then
