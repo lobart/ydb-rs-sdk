@@ -13,6 +13,7 @@ function git_set_tags(){
   git config user.name "robot"
   git config user.email "$GIT_EMAIL"
 
+  git add *
   git commit -am "bump version for $CRATE_NAME, $VERSION_PART"
 
   local GIT_TAG
