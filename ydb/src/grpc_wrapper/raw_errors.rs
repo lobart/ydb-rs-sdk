@@ -1,3 +1,4 @@
+use std::convert::Infallible;
 use std::fmt::{Display, Formatter};
 use std::num::TryFromIntError;
 use std::time::SystemTimeError;
@@ -55,6 +56,11 @@ impl Display for RawError {
 
 impl std::error::Error for RawError {}
 
+impl From<Infallible> for RawError {
+    fn from(_value: Infallible) -> Self {
+        Self::Custom("Infallible error".to_string())
+    }
+}
 impl From<SystemTimeError> for RawError {
     fn from(_value: SystemTimeError) -> Self {
         Self::Custom("System time conversion error".to_string())

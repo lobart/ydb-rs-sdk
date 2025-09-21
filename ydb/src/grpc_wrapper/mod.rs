@@ -8,6 +8,7 @@ pub(crate) mod raw_auth_service;
 pub(crate) mod raw_common_types;
 pub(crate) mod raw_discovery_client;
 pub(crate) mod raw_errors;
+pub(crate) mod raw_query_service;
 pub(crate) mod raw_scheme_client;
 pub(crate) mod raw_services;
 

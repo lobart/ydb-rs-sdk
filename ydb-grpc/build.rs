@@ -10,6 +10,7 @@ const COMPILE_FILES: &[&str] = &[
     "ydb_auth_v1.proto",
     "ydb_coordination_v1.proto",
     "ydb_discovery_v1.proto",
+    "ydb_query_v1.proto",
     "ydb_scheme_v1.proto",
     "ydb_table_v1.proto",
     "ydb_topic_v1.proto",
@@ -74,13 +75,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 fn clean_dst_dir(dst: &str) -> Result<(), Box<dyn std::error::Error>> {
     for file in fs::read_dir(dst)? {
         let fname = file?.file_name().to_str().unwrap().to_owned();
-        let fpath = format!("{}/{}", dst, fname);
+        let fpath = format!("{dst}/{fname}");
         if fname == "lib.rs" || fname == "mod.rs" {
-            println!("truncate file: {}", &fpath);
+            println!("truncate file: {fpath}");
             fs::File::create(&fpath)?;
             continue;
         }
-        println!("remove file: {}", &fpath);
+        println!("remove file: {fpath}");
         fs::remove_file(fpath)?;
     }
 
@@ -92,7 +93,7 @@ fn fix_generated_files(dir: &str) -> io::Result<()> {
         let item = item?;
         let item_path = item.path().to_str().unwrap_or("<empty>");
         if !item.metadata()?.is_file() {
-            println!("skip not file: '{}'", item_path);
+            println!("skip not file: '{item_path}'");
             continue;
         }
         fix_generated_file(item.path())?;

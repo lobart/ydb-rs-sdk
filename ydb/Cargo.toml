@@ -54,6 +54,7 @@ tower = "0.4"
 url = "2.2"
 uuid = { version = "1", features = ["v4"] }
 ydb-grpc = { version = "0.1.0", path = "../ydb-grpc" }
+futures-core = "0.3.21"
 
 [dev-dependencies]
 async_once = "0.2"
