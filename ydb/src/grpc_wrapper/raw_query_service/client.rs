@@ -1,5 +1,4 @@
 use crate::grpc_wrapper::raw_errors::RawError;
-use tracing::trace;
 use ydb_grpc::ydb_proto::query::{FetchScriptResultsRequest, FetchScriptResultsResponse};
 
 #[derive(Debug)]
@@ -20,7 +19,6 @@ impl TryFrom<FetchScriptResultsResponse> for RawFetchScriptResultsResponse {
     }
 }
 use crate::client::TimeoutSettings;
-use crate::grpc_wrapper::macroses::*;
 use crate::grpc_wrapper::raw_errors::RawResult;
 use crate::grpc_wrapper::raw_services::{GrpcServiceForDiscovery, Service};
 use crate::grpc_wrapper::runtime_interceptors::InterceptedChannel;
@@ -28,17 +26,14 @@ use crate::grpc_wrapper::runtime_interceptors::InterceptedChannel;
 use super::begin_transaction::RawBeginTransactionResult;
 use super::commit_transaction::RawCommitTransactionResult;
 use super::delete_session::RawDeleteSessionRequest;
-use super::delete_session::RawDeleteSessionResponse;
-use super::execute_query::{RawExecuteQueryRequest, RawExecuteQueryResponsePart};
+use super::execute_query::RawExecuteQueryRequest;
 use super::execute_script::RawExecuteScriptRequest;
 use super::transaction::{
-    RawBeginTransactionRequest, RawBeginTransactionResponse, RawCommitTransactionRequest,
-    RawCommitTransactionResponse, RawRollbackTransactionRequest, RawRollbackTransactionResponse,
+    RawBeginTransactionRequest, RawCommitTransactionRequest, RawRollbackTransactionRequest,
 };
 use crate::grpc_wrapper::raw_query_service::create_session::{
     RawCreateSessionRequest, RawCreateSessionResult as QueryCreateSessionResult,
 };
-use crate::grpc_wrapper::raw_table_service::create_session::RawCreateSessionResult;
 use ydb_grpc::ydb_proto::query;
 use ydb_grpc::ydb_proto::query::v1::query_service_client::QueryServiceClient;
 
