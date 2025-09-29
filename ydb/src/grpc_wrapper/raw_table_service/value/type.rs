@@ -164,7 +164,7 @@ impl RawType {
             RawType::UTF8 => Value::Text(String::default()),
             RawType::Yson => Value::Yson(Bytes::default()),
             RawType::Json => Value::Json(String::default()),
-            t @ RawType::Uuid => return unimplemented_type(t),
+            RawType::Uuid => Value::Uuid(uuid::Uuid::nil()),
             RawType::JSONDocument => Value::JsonDocument(String::default()),
             t @ RawType::DyNumber => return unimplemented_type(t),
             RawType::Decimal(_) => Value::Decimal(decimal_rs::Decimal::default()),

@@ -12,6 +12,7 @@ use crate::grpc_wrapper::raw_table_service::value::r#type::{RawType, StructMembe
 use crate::grpc_wrapper::raw_table_service::value::{RawTypedValue, RawValue};
 use crate::types::SECONDS_PER_DAY;
 use crate::{Bytes, SignedInterval, Value};
+
 impl TryFrom<crate::Value> for RawTypedValue {
     type Error = RawError;
 
@@ -129,6 +130,17 @@ impl TryFrom<crate::Value> for RawTypedValue {
                         scale: v.scale(),
                     }),
                     value: RawValue::HighLow128(high, low),
+                }
+            }
+            Value::Uuid(v) => {
+                let (high, low) = v.as_u64_pair();
+
+                let high = high.swap_bytes();
+                let low = low.swap_bytes();
+
+                RawTypedValue {
+                    r#type: RawType::Uuid,
+                    value: RawValue::HighLow128(low, high),
                 }
             }
             Value::Optional(v) => {
@@ -268,7 +280,14 @@ impl TryFrom<RawTypedValue> for Value {
             (t @ RawType::Yson, v) => return types_mismatch(t, v),
             (RawType::Json, RawValue::Text(v)) => Value::Json(v),
             (t @ RawType::Json, v) => return types_mismatch(t, v),
-            (t @ RawType::Uuid, _) => return type_unimplemented(t),
+            (RawType::Uuid, RawValue::HighLow128(high, low)) => {
+                let high_swapped = high.swap_bytes();
+                let low_swapped = low.swap_bytes();
+
+                let uuid = uuid::Uuid::from_u64_pair(low_swapped, high_swapped);
+                Value::Uuid(uuid)
+            }
+            (t @ RawType::Uuid, v) => return types_mismatch(t, v),
             (RawType::JSONDocument, RawValue::Text(v)) => Value::JsonDocument(v),
             (t @ RawType::JSONDocument, v) => return types_mismatch(t, v),
             (t @ RawType::DyNumber, _) => return type_unimplemented(t),
