@@ -1,6 +1,5 @@
 use crate::errors::{YdbError, YdbResult};
 use std::collections::HashMap;
-use std::hint;
 
 use crate::grpc_wrapper::raw_table_service::value::r#type::RawType;
 use crate::grpc_wrapper::raw_table_service::value::RawColumn;
