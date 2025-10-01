@@ -1,12 +1,14 @@
 use std::time::Duration;
 use tokio::time::timeout;
-use ydb::{ClientBuilder, MetadataUrlCredentials, Query, YdbError, YdbResult};
+use ydb::{
+    AccessTokenCredentials, ClientBuilder, MetadataUrlCredentials, Query, YdbError, YdbResult,
+};
 
 #[tokio::main]
 async fn main() -> YdbResult<()> {
     let client =
         ClientBuilder::new_from_connection_string(std::env::var("YDB_CONNECTION_STRING")?)?
-            .with_credentials(MetadataUrlCredentials::new())
+            .with_credentials(AccessTokenCredentials::from("asd"))
             .client()?;
 
     if let Ok(res) = timeout(Duration::from_secs(3), client.wait()).await {

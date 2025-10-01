@@ -2,30 +2,36 @@ use crate::client::TimeoutSettings;
 use crate::errors::*;
 use crate::grpc_connection_manager::GrpcConnectionManager;
 use crate::grpc_wrapper::raw_table_service::client::RawTableClient;
-use crate::session::Session;
+use crate::grpc_wrapper::runtime_interceptors::InterceptedChannel;
+use crate::session::{CreateClient, Session, SessionInterface, TableSessionClient};
 use async_trait::async_trait;
 use std::collections::vec_deque::VecDeque;
 use std::ops::{Add, Sub};
 use std::sync::{Arc, Mutex, Weak};
 use tokio::sync::Semaphore;
 use tracing::trace;
+use ydb_grpc::ydb_proto::table::v1::table_service_client::TableServiceClient;
 
 const DEFAULT_SIZE: usize = 1000;
 
 #[async_trait]
 pub(crate) trait SessionFabric: Send + Sync {
-    async fn create_session(&self, timeouts: TimeoutSettings) -> YdbResult<Session>;
+    async fn create_session(&self, timeouts: TimeoutSettings) -> YdbResult<Session<TableSessionClient>>;
 }
 
 #[async_trait]
 impl SessionFabric for GrpcConnectionManager {
-    async fn create_session(&self, timeouts: TimeoutSettings) -> YdbResult<Session> {
+    async fn create_session(&self, timeouts: TimeoutSettings) -> YdbResult<Session<TableSessionClient>> {
         let mut table = self
             .get_auth_service(RawTableClient::new)
             .await?
             .with_timeout(timeouts);
         let session_res = table.create_session().await?;
-        let session = Session::new(session_res.id, self.clone(), TimeoutSettings::default());
+        let session = Session::<TableSessionClient>::new(
+            session_res.id,
+            self.clone(),
+            TimeoutSettings::default(),
+        );
         return Ok(session);
     }
 }
@@ -41,7 +47,10 @@ pub(crate) struct SessionPool {
 }
 
 impl SessionPool {
-    pub(crate) fn new(session_client: Box<dyn SessionFabric>, timeouts: TimeoutSettings) -> Self {
+    pub(crate) fn new(
+        session_client: Box<dyn SessionFabric>,
+        timeouts: TimeoutSettings,
+    ) -> Self {
         let pool = Self {
             active_sessions: Arc::new(Semaphore::new(DEFAULT_SIZE)),
             create_session: Arc::new(session_client),
@@ -62,7 +71,7 @@ impl SessionPool {
         self
     }
 
-    pub(crate) async fn session(&self) -> YdbResult<Session> {
+    pub(crate) async fn session(&self) -> YdbResult<Session<TableSessionClient>> {
         let active_session_permit = self.active_sessions.clone().acquire_owned().await?;
         let idle_sessions = self.idle_sessions.clone();
 
@@ -81,7 +90,7 @@ impl SessionPool {
             }
         };
 
-        session.on_drop(Box::new(move |s: &mut Session| {
+        session.on_drop(Box::new(move |s: &mut Session<TableSessionClient>| {
             trace!("moved to pool: {}", s.id);
             let item = IdleSessionItem {
                 idle_since: tokio::time::Instant::now(),
@@ -97,7 +106,7 @@ impl SessionPool {
 
 struct IdleSessionItem {
     idle_since: tokio::time::Instant,
-    session: Session,
+    session: Session<TableSessionClient>,
 }
 
 async fn sessions_pinger(
@@ -156,10 +165,11 @@ mod test {
     use crate::errors::{YdbError, YdbResult};
     use crate::grpc_wrapper::raw_table_service::client::RawTableClient;
     use crate::grpc_wrapper::runtime_interceptors::InterceptedChannel;
-    use crate::session::{CreateTableClient, Session};
+    use crate::session::{CreateClient, Session, SessionInterface, TableSessionClient};
     use crate::session_pool::SessionPool;
     use async_trait::async_trait;
 
+    use crate::TableClient;
     use std::time::Duration;
     use tokio::sync::oneshot;
     use ydb_grpc::ydb_proto::table::v1::table_service_client::TableServiceClient;
@@ -168,33 +178,33 @@ mod test {
 
     #[async_trait]
     impl SessionFabric for SessionClientMock {
-        async fn create_session(&self, timeouts: TimeoutSettings) -> YdbResult<Session> {
-            Ok(Session::new(
-                "asd".into(),
-                TableChannelPoolMock {},
-                timeouts,
-            ))
+        async fn create_session(
+            &self,
+            timeouts: TimeoutSettings,
+        ) -> YdbResult<Session<TableSessionClient>> {
+            Ok(
+                Session::<TableSessionClient>::new(
+                    "asd".into(),
+                    TableChannelPoolMock {},
+                    timeouts,
+                ),
+            )
         }
     }
 
     struct TableChannelPoolMock {}
 
     #[async_trait]
-    impl CreateTableClient for TableChannelPoolMock {
-        async fn create_grpc_table_client(
-            &self,
-        ) -> YdbResult<TableServiceClient<InterceptedChannel>> {
+    impl CreateClient<TableSessionClient> for TableChannelPoolMock {
+        async fn create_grpc_client(&self) -> YdbResult<TableServiceClient<InterceptedChannel>> {
             Err(YdbError::Custom("test".into()))
         }
 
-        async fn create_table_client(
-            &self,
-            _timeouts: TimeoutSettings,
-        ) -> YdbResult<RawTableClient> {
+        async fn create_client(&self, _timeouts: TimeoutSettings) -> YdbResult<RawTableClient> {
             Err(YdbError::Custom("test".into()))
         }
 
-        fn clone_box(&self) -> Box<dyn CreateTableClient> {
+        fn clone_box(&self) -> Box<dyn CreateClient<TableSessionClient>> {
             Box::new(TableChannelPoolMock {})
         }
     }

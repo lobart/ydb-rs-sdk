@@ -1,13 +1,14 @@
 use crate::client::TimeoutSettings;
 
 use crate::errors::*;
-use crate::session::Session;
+use crate::session::{Session, SessionInterface, TableSessionClient};
 use crate::session_pool::SessionPool;
 use crate::transaction::{AutoCommit, Mode, SerializableReadWriteTx, Transaction};
 use crate::types::Value;
 
 use crate::grpc_connection_manager::GrpcConnectionManager;
 
+use crate::grpc_wrapper::raw_table_service::client::RawTableClient;
 use crate::grpc_wrapper::runtime_interceptors::InterceptedChannel;
 use crate::table_service_types::CopyTableItem;
 use crate::{Query, StreamResult};
@@ -193,7 +194,9 @@ impl TableClient {
     }
 
     #[allow(dead_code)]
-    pub(crate) async fn create_session(&self) -> YdbResult<Session> {
+    pub(crate) async fn create_session(
+        &self,
+    ) -> YdbResult<Session<TableSessionClient>> {
         Ok(self
             .session_pool
             .session()
@@ -399,7 +402,9 @@ impl TableClient {
     pub(crate) async fn retry_with_session<CallbackFuture, CallbackResult>(
         &self,
         opts: RetryOptions,
-        callback: impl Fn(Session) -> CallbackFuture,
+        callback: impl Fn(
+            Session<TableSessionClient>,
+        ) -> CallbackFuture,
     ) -> YdbResultWithCustomerErr<CallbackResult>
     where
         CallbackFuture: Future<Output = YdbResultWithCustomerErr<CallbackResult>>,
@@ -481,25 +486,25 @@ impl TableClient {
 }
 
 #[derive(Debug)]
-struct RetryParams {
+pub(crate) struct RetryParams {
     pub(crate) attempt: usize,
     pub(crate) time_from_start: Duration,
 }
 
 // May be extend in feature
 #[derive(Default, Debug)]
-struct RetryDecision {
+pub(crate) struct RetryDecision {
     pub(crate) allow_retry: bool,
     pub(crate) wait_timeout: Duration,
 }
 
-trait Retry: Send + Sync {
+pub(crate) trait Retry: Send + Sync {
     fn wait_duration(&self, params: RetryParams) -> RetryDecision;
 }
 
 #[derive(Debug)]
-struct TimeoutRetrier {
-    timeout: Duration,
+pub(crate) struct TimeoutRetrier {
+    pub(crate) timeout: Duration,
 }
 
 impl Default for TimeoutRetrier {
@@ -526,7 +531,7 @@ impl Retry for TimeoutRetrier {
     }
 }
 
-struct NoRetrier {}
+pub(crate) struct NoRetrier {}
 
 impl Retry for NoRetrier {
     #[instrument(skip_all)]

@@ -1,18 +1,21 @@
 use crate::client::TimeoutSettings;
 use crate::errors::{YdbError, YdbResult};
+use crate::grpc_wrapper::raw_table_service::client::RawTableClient;
 use crate::grpc_wrapper::raw_table_service::execute_data_query::RawExecuteDataQueryRequest;
 use crate::grpc_wrapper::raw_table_service::query_stats::RawQueryStatMode;
 use crate::grpc_wrapper::raw_table_service::transaction_control::{
     RawOnlineReadonlySettings, RawTransactionControl, RawTxMode, RawTxSelector, RawTxSettings,
 };
+use crate::grpc_wrapper::runtime_interceptors::InterceptedChannel;
 use crate::query::Query;
 use crate::result::QueryResult;
-use crate::session::Session;
+use crate::session::{Session, SessionInterface, TableSessionClient};
 use crate::session_pool::SessionPool;
 use async_trait::async_trait;
 use itertools::Itertools;
 use tracing::trace;
 use ydb_grpc::ydb_proto::table::transaction_settings::TxMode;
+use ydb_grpc::ydb_proto::table::v1::table_service_client::TableServiceClient;
 use ydb_grpc::ydb_proto::table::{OnlineModeSettings, SerializableModeSettings};
 
 #[derive(Clone, Debug)]
@@ -137,7 +140,7 @@ pub(crate) struct SerializableReadWriteTx {
     session_pool: SessionPool,
 
     id: Option<String>,
-    session: Option<Session>,
+    session: Option<Session<TableSessionClient>>,
     comitted: bool,
     rollbacked: bool,
     finished: bool,
