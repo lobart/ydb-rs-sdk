@@ -1,3 +1,4 @@
+use crate::client::Client;
 use crate::{test_helpers::test_client_builder, ydb_params, Query, Value, YdbResult};
 use uuid::Uuid;
 
@@ -40,39 +41,104 @@ async fn test_decimal() -> YdbResult<()> {
 }
 
 #[tokio::test]
-#[ignore] // needs YDB access
-async fn test_uuid() -> YdbResult<()> {
+#[ignore = "needs YDB access"]
+async fn test_uuid_serialization() -> YdbResult<()> {
     let client = test_client_builder().client()?;
-
     client.wait().await?;
 
-    let test_uuid_v7 = uuid::Uuid::now_v7();
-    let test_uuid_v4 = uuid::Uuid::new_v4();
+    let test_cases: Vec<Uuid> = vec![
+        (uuid::Uuid::now_v7()),
+        (uuid::Uuid::new_v4()),
+        (uuid::Uuid::nil()),
+        (Uuid::from_u128(0x1234567890abcdef1234567890abcdef)),
+    ];
 
-    let (v7_db_value, v4_db_value): (Option<Uuid>, Option<Uuid>) = client
+    for test_uuid in &test_cases {
+        check_uuid_as_uuid_serialization(&client, *test_uuid).await?;
+    }
+
+    for test_uuid in &test_cases {
+        check_uuid_as_utf8_serialization(&client, *test_uuid).await?;
+    }
+
+    for test_uuid in &test_cases {
+        check_text_as_uuid_serialization(&client, *test_uuid).await?;
+    }
+
+    Ok(())
+}
+
+async fn check_uuid_as_uuid_serialization(client: &Client, test_uuid: Uuid) -> YdbResult<()> {
+    let (db_value,): (Option<Uuid>,) = client
+        .table_client()
+        .retry_transaction(|mut t| async move {
+            let res = t
+                .query(
+                    Query::new("select $test_uuid as db_value").with_params(ydb_params! {
+                        "$test_uuid" => test_uuid,
+                    }),
+                )
+                .await?;
+            let mut row = res.into_only_row()?;
+            let value: Option<Uuid> = row.remove_field_by_name("db_value")?.try_into()?;
+            Ok((value,))
+        })
+        .await?;
+
+    assert_eq!(Some(test_uuid), db_value);
+    Ok(())
+}
+
+async fn check_uuid_as_utf8_serialization(client: &Client, test_uuid: Uuid) -> YdbResult<()> {
+    let (db_result,): (Option<String>,) = client
         .table_client()
         .retry_transaction(|mut t| async move {
             let res = t
                 .query(
                     Query::new(
                         "
-                select $test_uuid_v7 as v7_db_value, $test_uuid_v4 as v4_db_value",
+                declare $test_uuid AS Uuid;
+                select cast($test_uuid AS Utf8) AS db_result",
                     )
                     .with_params(ydb_params! {
-                        "$test_uuid_v7" => test_uuid_v7,
-                        "$test_uuid_v4" => test_uuid_v4,
+                        "$test_uuid" => test_uuid,
                     }),
                 )
                 .await?;
             let mut row = res.into_only_row()?;
-            let v7_value: Option<Uuid> = row.remove_field_by_name("v7_db_value")?.try_into()?;
-            let v4_value: Option<Uuid> = row.remove_field_by_name("v4_db_value")?.try_into()?;
-            Ok((v7_value, v4_value))
+
+            let value: Option<String> = row.remove_field_by_name("db_result")?.try_into()?;
+            Ok((value,))
         })
         .await?;
 
-    assert_eq!(test_uuid_v7, v7_db_value.unwrap());
-    assert_eq!(test_uuid_v4, v4_db_value.unwrap());
+    assert_eq!(Some(test_uuid.to_string()), db_result);
+    Ok(())
+}
 
+async fn check_text_as_uuid_serialization(client: &Client, test_uuid: Uuid) -> YdbResult<()> {
+    let (db_result,): (Option<Uuid>,) = client
+        .table_client()
+        .retry_transaction(|mut t| async move {
+            let res = t
+                .query(
+                    Query::new(
+                        "
+            declare $val AS Text;
+            select cast($val AS UUID) AS db_result",
+                    )
+                    .with_params(ydb_params! {
+                        "$val" => test_uuid.to_string(),
+                    }),
+                )
+                .await?;
+            let mut row = res.into_only_row()?;
+
+            let value: Option<Uuid> = row.remove_field_by_name("db_result")?.try_into()?;
+            Ok((value,))
+        })
+        .await?;
+
+    assert_eq!(Some(test_uuid), db_result);
     Ok(())
 }

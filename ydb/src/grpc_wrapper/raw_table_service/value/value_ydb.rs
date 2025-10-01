@@ -5,6 +5,7 @@ mod value_ydb_test;
 use std::time::{Duration, SystemTime};
 
 use itertools::Itertools;
+use uuid::Uuid;
 
 use super::r#type::DecimalType;
 use crate::grpc_wrapper::raw_errors::{RawError, RawResult};
@@ -133,14 +134,14 @@ impl TryFrom<crate::Value> for RawTypedValue {
                 }
             }
             Value::Uuid(v) => {
-                let (high, low) = v.as_u64_pair();
+                let bytes = v.to_bytes_le();
 
-                let high = high.swap_bytes();
-                let low = low.swap_bytes();
+                let low = u64::from_le_bytes(bytes[0..8].try_into().unwrap());
+                let high = u64::from_le_bytes(bytes[8..16].try_into().unwrap());
 
                 RawTypedValue {
                     r#type: RawType::Uuid,
-                    value: RawValue::HighLow128(low, high),
+                    value: RawValue::HighLow128(high, low),
                 }
             }
             Value::Optional(v) => {
@@ -281,10 +282,12 @@ impl TryFrom<RawTypedValue> for Value {
             (RawType::Json, RawValue::Text(v)) => Value::Json(v),
             (t @ RawType::Json, v) => return types_mismatch(t, v),
             (RawType::Uuid, RawValue::HighLow128(high, low)) => {
-                let high_swapped = high.swap_bytes();
-                let low_swapped = low.swap_bytes();
+                let mut le_bytes = [0u8; 16];
+                le_bytes[0..8].copy_from_slice(&low.to_le_bytes());
+                le_bytes[8..16].copy_from_slice(&high.to_le_bytes());
 
-                let uuid = uuid::Uuid::from_u64_pair(low_swapped, high_swapped);
+                let uuid = Uuid::from_bytes_le(le_bytes);
+
                 Value::Uuid(uuid)
             }
             (t @ RawType::Uuid, v) => return types_mismatch(t, v),
