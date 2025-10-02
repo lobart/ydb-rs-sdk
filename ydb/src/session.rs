@@ -15,21 +15,29 @@ use crate::grpc_wrapper::raw_table_service::client::{
 use crate::grpc_wrapper::runtime_interceptors::InterceptedChannel;
 
 use crate::grpc_wrapper::raw_errors::RawResult;
-use crate::grpc_wrapper::raw_query_service::client::RawQueryClient;
+use crate::grpc_wrapper::raw_query_service::begin_transaction::RawBeginTransactionRequest as BeginTransactionQueryServiceRequest;
+use crate::grpc_wrapper::raw_query_service::client::{
+    RawQueryClient as RawQueryServiceClient, RawQueryClient,
+};
+use crate::grpc_wrapper::raw_query_service::commit_transaction::RawCommitTransactionRequest as RawCommitTransactionQueryServiceRequest;
+use crate::grpc_wrapper::raw_query_service::rollback_transaction::RawRollbackTransactionRequest as RawRollbackTransactionQueryServiceRequest;
 use crate::grpc_wrapper::raw_table_service::bulk_upsert::RawBulkUpsertRequest;
-use crate::grpc_wrapper::raw_table_service::commit_transaction::RawCommitTransactionRequest;
+use crate::grpc_wrapper::raw_table_service::commit_transaction::RawCommitTransactionRequest as RawCommitTransactionTableRequest;
 use crate::grpc_wrapper::raw_table_service::copy_table::{
     RawCopyTableRequest, RawCopyTablesRequest,
 };
 use crate::grpc_wrapper::raw_table_service::execute_data_query::RawExecuteDataQueryRequest;
 use crate::grpc_wrapper::raw_table_service::execute_scheme_query::RawExecuteSchemeQueryRequest;
 use crate::grpc_wrapper::raw_table_service::keepalive::RawKeepAliveRequest;
-use crate::grpc_wrapper::raw_table_service::rollback_transaction::RawRollbackTransactionRequest;
+use crate::grpc_wrapper::raw_table_service::rollback_transaction::RawRollbackTransactionRequest as RawRollbackTransactionTableRequest;
 use crate::table_service_types::CopyTableItem;
 use crate::trace_helpers::ensure_len_string;
 use tracing::{debug, trace};
 use ydb_grpc::ydb_proto::query::v1::query_service_client::QueryServiceClient;
-use ydb_grpc::ydb_proto::query::CommitTransactionRequest;
+use ydb_grpc::ydb_proto::query::{
+    CommitTransactionRequest as CommitTransactionQueryServiceRequest,
+    RollbackTransactionRequest as RollbackTransactionQueryServiceRequest,
+};
 use ydb_grpc::ydb_proto::table::v1::table_service_client::TableServiceClient;
 use ydb_grpc::ydb_proto::table::{execute_scan_query_request, ExecuteScanQueryRequest};
 use ydb_grpc::ydb_proto::topic::Codec::Raw;
@@ -47,16 +55,9 @@ pub(crate) trait SessionInterface<C>
 where
     C: Client,
 {
-    fn handle_error(&mut self, err: &YdbError);
-    fn handle_raw_result<T>(&mut self, res: RawResult<T>) -> YdbResult<T>;
     async fn begin_transaction(&mut self, tx_id: String) -> YdbResult<()>;
     async fn commit_transaction(&mut self, tx_id: String) -> YdbResult<()>;
     async fn rollback_transaction(&mut self, tx_id: String) -> YdbResult<()>;
-    async fn keepalive(&mut self) -> YdbResult<()>;
-    fn with_timeouts(self, timeouts: TimeoutSettings) -> Self;
-    async fn get_client(&self) -> YdbResult<C::Raw>;
-    fn on_drop(&mut self, f: Box<dyn FnOnce(&mut Self) + Send + Sync>);
-    fn clone_without_ondrop(&self) -> Self;
 }
 
 pub(crate) trait Client {
@@ -70,6 +71,11 @@ impl Client for TableSessionClient {
     type Service = TableServiceClient<InterceptedChannel>;
 }
 
+pub struct QueryServiceSessionClient;
+impl Client for QueryServiceSessionClient {
+    type Raw = RawQueryClient;
+    type Service = QueryServiceClient<InterceptedChannel>;
+}
 
 #[derive(Derivative)]
 #[derivative(Debug)]
@@ -88,9 +94,53 @@ where
 
     timeouts: TimeoutSettings,
 }
-impl SessionInterface<TableSessionClient>
-    for Session<TableSessionClient>
-{
+impl SessionInterface<TableSessionClient> for Session<TableSessionClient> {
+    async fn begin_transaction(&mut self, tx_id: String) -> YdbResult<()> {
+        todo!()
+    }
+
+    async fn commit_transaction(&mut self, tx_id: String) -> YdbResult<()> {
+        let mut table = self.get_client().await?;
+        let res = table
+            .commit_transaction(RawCommitTransactionTableRequest {
+                session_id: self.id.clone(),
+                tx_id,
+                operation_params: self.timeouts.operation_params(),
+                collect_stats: DEFAULT_COLLECT_STAT_MODE,
+            })
+            .await;
+        self.handle_raw_result(res)?;
+        Ok(())
+    }
+    async fn rollback_transaction(&mut self, tx_id: String) -> YdbResult<()> {
+        let mut table = self.get_client().await?;
+        let res = table
+            .rollback_transaction(RawRollbackTransactionTableRequest {
+                session_id: self.id.clone(),
+                tx_id,
+                operation_params: self.timeouts.operation_params(),
+            })
+            .await;
+
+        self.handle_raw_result(res)
+    }
+}
+
+impl<C: Client> Session<C> {
+    pub(crate) fn new(
+        id: String,
+        channel_pool: impl CreateClient<C> + 'static,
+        timeouts: TimeoutSettings,
+    ) -> Self {
+        Self {
+            id,
+            can_pooled: true,
+            on_drop_callbacks: Vec::new(),
+            channel_pool: Box::new(channel_pool),
+            timeouts,
+        }
+    }
+
     fn handle_error(&mut self, err: &YdbError) {
         if let YdbError::YdbStatusError(err) = err {
             use ydb_grpc::ydb_proto::status_ids::StatusCode;
@@ -109,38 +159,38 @@ impl SessionInterface<TableSessionClient>
         }
         res
     }
-
-    async fn begin_transaction(&mut self, tx_id: String) -> YdbResult<()> {
-        todo!()
+    pub(crate) fn clone_without_ondrop(&self) -> Self {
+        Self {
+            id: self.id.clone(),
+            can_pooled: self.can_pooled,
+            on_drop_callbacks: Vec::new(),
+            channel_pool: self.channel_pool.clone_box(),
+            timeouts: self.timeouts,
+        }
     }
 
-    async fn commit_transaction(&mut self, tx_id: String) -> YdbResult<()> {
-        let mut table = self.get_client().await?;
-        let res = table
-            .commit_transaction(RawCommitTransactionRequest {
-                session_id: self.id.clone(),
-                tx_id,
-                operation_params: self.timeouts.operation_params(),
-                collect_stats: DEFAULT_COLLECT_STAT_MODE,
-            })
-            .await;
-        self.handle_raw_result(res)?;
-        Ok(())
-    }
-    async fn rollback_transaction(&mut self, tx_id: String) -> YdbResult<()> {
-        let mut table = self.get_client().await?;
-        let res = table
-            .rollback_transaction(RawRollbackTransactionRequest {
-                session_id: self.id.clone(),
-                tx_id,
-                operation_params: self.timeouts.operation_params(),
-            })
-            .await;
-
-        self.handle_raw_result(res)
+    // deprecated, use get_table_client instead
+    async fn get_channel(&self) -> YdbResult<C::Service> {
+        self.channel_pool.create_grpc_client().await
     }
 
-    async fn keepalive(&mut self) -> YdbResult<()> {
+    pub(crate) fn with_timeouts(mut self, timeouts: TimeoutSettings) -> Self {
+        self.timeouts = timeouts;
+        self
+    }
+
+    async fn get_client(&self) -> YdbResult<C::Raw> {
+        self.channel_pool.create_client(self.timeouts).await
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn on_drop(&mut self, f: Box<dyn FnOnce(&mut Self) + Send + Sync>) {
+        self.on_drop_callbacks.push(f)
+    }
+}
+
+impl Session<TableSessionClient> {
+    pub(crate) async fn keepalive(&mut self) -> YdbResult<()> {
         let mut table = self.get_client().await?;
         let res = table
             .keep_alive(RawKeepAliveRequest {
@@ -160,49 +210,6 @@ impl SessionInterface<TableSessionClient>
         }
     }
 
-    fn with_timeouts(mut self, timeouts: TimeoutSettings) -> Self {
-        self.timeouts = timeouts;
-        self
-    }
-
-    async fn get_client(&self) -> YdbResult<RawTableClient> {
-        self.channel_pool.create_client(self.timeouts).await
-    }
-
-    #[allow(dead_code)]
-    fn on_drop(&mut self, f: Box<dyn FnOnce(&mut Self) + Send + Sync>) {
-        self.on_drop_callbacks.push(f)
-    }
-
-    fn clone_without_ondrop(&self) -> Self {
-        Self {
-            id: self.id.clone(),
-            can_pooled: self.can_pooled,
-            on_drop_callbacks: Vec::new(),
-            channel_pool: self.channel_pool.clone_box(),
-            timeouts: self.timeouts,
-        }
-    }
-}
-
-impl Session<TableSessionClient> {
-    pub(crate) fn new(
-        id: String,
-        channel_pool: impl CreateClient<TableSessionClient> + 'static,
-        timeouts: TimeoutSettings,
-    ) -> Self {
-        Self {
-            id,
-            can_pooled: true,
-            on_drop_callbacks: Vec::new(),
-            channel_pool: Box::new(channel_pool),
-            timeouts,
-        }
-    }
-    // deprecated, use get_table_client instead
-    async fn get_channel(&self) -> YdbResult<TableServiceClientType> {
-        self.channel_pool.create_grpc_client().await
-    }
     pub(crate) async fn execute_schema_query(&mut self, query: String) -> YdbResult<()> {
         let res = self
             .get_client()
@@ -308,9 +315,38 @@ impl Session<TableSessionClient> {
     }
 }
 
+impl SessionInterface<QueryServiceSessionClient> for Session<QueryServiceSessionClient> {
+    async fn begin_transaction(&mut self, tx_id: String) -> YdbResult<()> {
+        todo!()
+    }
+
+    async fn commit_transaction(&mut self, tx_id: String) -> YdbResult<()> {
+        let mut table = self.get_client().await?;
+        let res = table
+            .commit_transaction(RawCommitTransactionQueryServiceRequest {
+                session_id: self.id.clone(),
+                tx_id,
+            })
+            .await;
+        self.handle_raw_result(res)?;
+        Ok(())
+    }
+    async fn rollback_transaction(&mut self, tx_id: String) -> YdbResult<()> {
+        let mut table = self.get_client().await?;
+        let res = table
+            .rollback_transaction(RawRollbackTransactionQueryServiceRequest {
+                session_id: self.id.clone(),
+                tx_id,
+            })
+            .await;
+
+        self.handle_raw_result(res)
+    }
+}
+
 impl<C> Drop for Session<C>
 where
-    C: Client,  // Add this bound
+    C: Client, // Add this bound
 {
     fn drop(&mut self) {
         trace!("drop session: {}", &self.id);
@@ -323,7 +359,7 @@ where
 #[async_trait::async_trait]
 pub(crate) trait CreateClient<C>: Send + Sync
 where
-    C: Client,  // Add this bound
+    C: Client,
 {
     async fn create_grpc_client(&self) -> YdbResult<C::Service>;
     async fn create_client(&self, timeouts: TimeoutSettings) -> YdbResult<C::Raw>;
@@ -344,6 +380,24 @@ impl CreateClient<TableSessionClient> for GrpcConnectionManager {
     }
 
     fn clone_box(&self) -> Box<dyn CreateClient<TableSessionClient>> {
+        Box::new(self.clone())
+    }
+}
+
+#[async_trait::async_trait]
+impl CreateClient<QueryServiceSessionClient> for GrpcConnectionManager {
+    async fn create_grpc_client(&self) -> YdbResult<QueryServiceClient<InterceptedChannel>> {
+        self.get_auth_service(QueryServiceClient::<InterceptedChannel>::new)
+            .await
+    }
+
+    async fn create_client(&self, timeouts: TimeoutSettings) -> YdbResult<RawQueryClient> {
+        self.get_auth_service(RawQueryClient::new)
+            .await
+            .map(|item| item.with_timeout(timeouts))
+    }
+
+    fn clone_box(&self) -> Box<dyn CreateClient<QueryServiceSessionClient>> {
         Box::new(self.clone())
     }
 }

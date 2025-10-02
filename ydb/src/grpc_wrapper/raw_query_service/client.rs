@@ -23,14 +23,12 @@ use crate::grpc_wrapper::raw_errors::RawResult;
 use crate::grpc_wrapper::raw_services::{GrpcServiceForDiscovery, Service};
 use crate::grpc_wrapper::runtime_interceptors::InterceptedChannel;
 
-use super::begin_transaction::RawBeginTransactionResult;
-use super::commit_transaction::RawCommitTransactionResult;
+use super::begin_transaction::{RawBeginTransactionRequest, RawBeginTransactionResult};
+use super::commit_transaction::{RawCommitTransactionRequest, RawCommitTransactionResult};
 use super::delete_session::RawDeleteSessionRequest;
 use super::execute_query::RawExecuteQueryRequest;
 use super::execute_script::RawExecuteScriptRequest;
-use super::transaction::{
-    RawBeginTransactionRequest, RawCommitTransactionRequest, RawRollbackTransactionRequest,
-};
+use super::rollback_transaction::RawRollbackTransactionRequest;
 use crate::grpc_wrapper::raw_query_service::create_session::{
     RawCreateSessionRequest, RawCreateSessionResult as QueryCreateSessionResult,
 };

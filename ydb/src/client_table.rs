@@ -194,9 +194,7 @@ impl TableClient {
     }
 
     #[allow(dead_code)]
-    pub(crate) async fn create_session(
-        &self,
-    ) -> YdbResult<Session<TableSessionClient>> {
+    pub(crate) async fn create_session(&self) -> YdbResult<Session<TableSessionClient>> {
         Ok(self
             .session_pool
             .session()
@@ -402,9 +400,7 @@ impl TableClient {
     pub(crate) async fn retry_with_session<CallbackFuture, CallbackResult>(
         &self,
         opts: RetryOptions,
-        callback: impl Fn(
-            Session<TableSessionClient>,
-        ) -> CallbackFuture,
+        callback: impl Fn(Session<TableSessionClient>) -> CallbackFuture,
     ) -> YdbResultWithCustomerErr<CallbackResult>
     where
         CallbackFuture: Future<Output = YdbResultWithCustomerErr<CallbackResult>>,

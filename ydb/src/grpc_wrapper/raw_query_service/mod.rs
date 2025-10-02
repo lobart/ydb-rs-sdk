@@ -7,4 +7,3 @@ pub(crate) mod execute_query;
 pub(crate) mod execute_script;
 pub(crate) mod fetch_script_results;
 pub(crate) mod rollback_transaction;
-pub(crate) mod transaction;

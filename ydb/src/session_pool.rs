@@ -16,12 +16,18 @@ const DEFAULT_SIZE: usize = 1000;
 
 #[async_trait]
 pub(crate) trait SessionFabric: Send + Sync {
-    async fn create_session(&self, timeouts: TimeoutSettings) -> YdbResult<Session<TableSessionClient>>;
+    async fn create_session(
+        &self,
+        timeouts: TimeoutSettings,
+    ) -> YdbResult<Session<TableSessionClient>>;
 }
 
 #[async_trait]
 impl SessionFabric for GrpcConnectionManager {
-    async fn create_session(&self, timeouts: TimeoutSettings) -> YdbResult<Session<TableSessionClient>> {
+    async fn create_session(
+        &self,
+        timeouts: TimeoutSettings,
+    ) -> YdbResult<Session<TableSessionClient>> {
         let mut table = self
             .get_auth_service(RawTableClient::new)
             .await?
@@ -47,10 +53,7 @@ pub(crate) struct SessionPool {
 }
 
 impl SessionPool {
-    pub(crate) fn new(
-        session_client: Box<dyn SessionFabric>,
-        timeouts: TimeoutSettings,
-    ) -> Self {
+    pub(crate) fn new(session_client: Box<dyn SessionFabric>, timeouts: TimeoutSettings) -> Self {
         let pool = Self {
             active_sessions: Arc::new(Semaphore::new(DEFAULT_SIZE)),
             create_session: Arc::new(session_client),
@@ -182,13 +185,11 @@ mod test {
             &self,
             timeouts: TimeoutSettings,
         ) -> YdbResult<Session<TableSessionClient>> {
-            Ok(
-                Session::<TableSessionClient>::new(
-                    "asd".into(),
-                    TableChannelPoolMock {},
-                    timeouts,
-                ),
-            )
+            Ok(Session::<TableSessionClient>::new(
+                "asd".into(),
+                TableChannelPoolMock {},
+                timeouts,
+            ))
         }
     }
 
