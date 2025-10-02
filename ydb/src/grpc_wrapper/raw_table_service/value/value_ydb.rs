@@ -5,6 +5,7 @@ mod value_ydb_test;
 use std::time::{Duration, SystemTime};
 
 use itertools::Itertools;
+use uuid::Uuid;
 
 use super::r#type::DecimalType;
 use crate::grpc_wrapper::raw_errors::{RawError, RawResult};
@@ -12,6 +13,7 @@ use crate::grpc_wrapper::raw_table_service::value::r#type::{RawType, StructMembe
 use crate::grpc_wrapper::raw_table_service::value::{RawTypedValue, RawValue};
 use crate::types::SECONDS_PER_DAY;
 use crate::{Bytes, SignedInterval, Value};
+
 impl TryFrom<crate::Value> for RawTypedValue {
     type Error = RawError;
 
@@ -128,6 +130,17 @@ impl TryFrom<crate::Value> for RawTypedValue {
                         precision: v.precision(),
                         scale: v.scale(),
                     }),
+                    value: RawValue::HighLow128(high, low),
+                }
+            }
+            Value::Uuid(v) => {
+                let bytes = v.to_bytes_le();
+
+                let low = u64::from_le_bytes(bytes[0..8].try_into().unwrap());
+                let high = u64::from_le_bytes(bytes[8..16].try_into().unwrap());
+
+                RawTypedValue {
+                    r#type: RawType::Uuid,
                     value: RawValue::HighLow128(high, low),
                 }
             }
@@ -268,7 +281,16 @@ impl TryFrom<RawTypedValue> for Value {
             (t @ RawType::Yson, v) => return types_mismatch(t, v),
             (RawType::Json, RawValue::Text(v)) => Value::Json(v),
             (t @ RawType::Json, v) => return types_mismatch(t, v),
-            (t @ RawType::Uuid, _) => return type_unimplemented(t),
+            (RawType::Uuid, RawValue::HighLow128(high, low)) => {
+                let mut le_bytes = [0u8; 16];
+                le_bytes[0..8].copy_from_slice(&low.to_le_bytes());
+                le_bytes[8..16].copy_from_slice(&high.to_le_bytes());
+
+                let uuid = Uuid::from_bytes_le(le_bytes);
+
+                Value::Uuid(uuid)
+            }
+            (t @ RawType::Uuid, v) => return types_mismatch(t, v),
             (RawType::JSONDocument, RawValue::Text(v)) => Value::JsonDocument(v),
             (t @ RawType::JSONDocument, v) => return types_mismatch(t, v),
             (t @ RawType::DyNumber, _) => return type_unimplemented(t),
