@@ -1,5 +1,7 @@
 use crate::grpc_wrapper::raw_errors::RawError;
-use ydb_grpc::ydb_proto::query::{FetchScriptResultsRequest, FetchScriptResultsResponse};
+use ydb_grpc::ydb_proto::query::{
+    ExecuteQueryRequest, FetchScriptResultsRequest, FetchScriptResultsResponse,
+};
 
 #[derive(Debug)]
 pub(crate) struct RawFetchScriptResultsRequest(pub FetchScriptResultsRequest);
@@ -103,10 +105,9 @@ impl RawQueryClient {
 
     pub async fn execute_query_stream(
         &mut self,
-        req: RawExecuteQueryRequest,
+        req: ExecuteQueryRequest,
     ) -> RawResult<tonic::Streaming<query::ExecuteQueryResponsePart>> {
-        let grpc_req: query::ExecuteQueryRequest = req.into();
-        let resp = self.service.execute_query(grpc_req).await?;
+        let resp = self.service.execute_query(req).await?;
         Ok(resp.into_inner())
     }
 

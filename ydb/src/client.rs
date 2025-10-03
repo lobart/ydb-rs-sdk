@@ -1,5 +1,6 @@
 use crate::client_common::DBCredentials;
 use crate::client_coordination::client::CoordinationClient;
+use crate::client_query_service::QueryClient;
 use crate::client_scheme::client::SchemeClient;
 use crate::client_table::TableClient;
 use crate::discovery::Discovery;
@@ -48,6 +49,10 @@ impl Client {
     /// Create instance of client for table service
     pub fn table_client(&self) -> TableClient {
         TableClient::new(self.connection_manager.clone(), self.timeouts)
+    }
+
+    pub fn query_service_client(&self) -> QueryClient {
+        QueryClient::new(self.connection_manager.clone(), self.timeouts)
     }
 
     /// Create instance of client for directory service

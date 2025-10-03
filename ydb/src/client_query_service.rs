@@ -14,6 +14,7 @@ use crate::client_table::{Retry, TimeoutRetrier};
 use crate::errors::NeedRetry;
 use crate::grpc_connection_manager::GrpcConnectionManager;
 use crate::grpc_wrapper::raw_query_service::execute_query::RawExecuteQueryRequest;
+use crate::session::{QueryServiceSession, TableSession};
 use crate::session_pool::SessionPool;
 use crate::transaction::{AutoCommit, SerializableReadWriteTx};
 use crate::{Mode, Query, StreamResult, Transaction, TransactionOptions, YdbResult};
@@ -24,7 +25,7 @@ use ydb_grpc::ydb_proto::query::{QueryContent, SerializableModeSettings, Syntax}
 #[derive(Clone)]
 pub struct QueryClient {
     error_on_truncate: bool,
-    session_pool: SessionPool,
+    session_pool: SessionPool<QueryServiceSession>,
     retrier: Arc<Box<dyn Retry>>,
     transaction_options: TransactionOptions,
     idempotent_operation: bool,
@@ -38,7 +39,10 @@ impl QueryClient {
     ) -> Self {
         Self {
             error_on_truncate: false,
-            session_pool: SessionPool::new(Box::new(connection_manager), timeouts),
+            session_pool: SessionPool::<QueryServiceSession>::new(
+                Box::new(connection_manager),
+                timeouts,
+            ),
             retrier: Arc::new(Box::<crate::client_table::TimeoutRetrier>::default()),
             transaction_options: TransactionOptions::new(),
             idempotent_operation: false,
@@ -94,18 +98,8 @@ impl QueryClient {
         }
     }
 
-    pub(crate) fn create_autocommit_transaction(&self, mode: Mode) -> impl Transaction {
-        AutoCommit::new(self.session_pool.clone(), mode, self.timeouts)
-            .with_error_on_truncate(self.error_on_truncate)
-    }
-
-    pub(crate) fn create_interactive_transaction(&self) -> impl Transaction {
-        SerializableReadWriteTx::new(self.session_pool.clone(), self.timeouts)
-            .with_error_on_truncate(self.error_on_truncate)
-    }
-
     #[allow(dead_code)]
-    pub async fn create_session(&self) -> YdbResult<SessionSt> {
+    pub async fn create_session(&self) -> YdbResult<QueryServiceSession> {
         Ok(self
             .session_pool
             .session()
@@ -147,65 +141,21 @@ impl QueryClient {
         }
     }
 
-    /// Execute scan query. The method will auto-retry errors while start query execution,
-    /// but no retries after server start streaming result.
-    pub async fn retry_execute_scan_query(&self, query: Query) -> YdbResult<StreamResult> {
-        self.retry(|| async {
-            let mut session = self.create_session().await?;
-            session.execute_scan_query(query.clone()).await
-        })
-        .await
-    }
-
-    /// Execute scheme query with retry policy
-    pub async fn retry_execute_scheme_query<T: Into<String>>(&self, query: T) -> YdbResult<()> {
-        let query = Arc::new(query.into());
-        self.retry(|| async {
-            let mut session = self.create_session().await?;
-            session.execute_schema_query(query.to_string()).await
-        })
-        .await
-    }
-    ///////////////////
-    ///////////////////
-
-    /// Execute YQL text in a short-lived transaction and collect all response parts.
-    pub async fn execute_yql_collect(
-        &mut self,
-        yql_text: impl Into<String>,
-    ) -> RawResult<Vec<query::ExecuteQueryResponsePart>> {
-        let yql = yql_text.into();
-        let req = query::ExecuteQueryRequest {
-            session_id: "".to_string(),
-            query: Some(query::execute_query_request::Query::QueryContent(
-                query::QueryContent {
-                    syntax: Syntax::YqlV1.into(),
-                    text: yql_text.clone(),
-                },
-            )),
-            // Default: begin + commit short-living transaction (SerializableRW)
-            tx_control: Some(query::TransactionControl {
-                tx_selector: Some(query::transaction_control::TxSelector::BeginTx(
-                    query::TransactionSettings {
-                        tx_mode: Some(query::transaction_settings::TxMode::SerializableReadWrite(
-                            SerializableModeSettings {},
-                        )),
-                    },
-                )),
-                ..Default::default()
-            }),
-            ..Default::default()
-        };
-
-        let mut stream = self
-            .raw
-            .execute_query_stream(RawExecuteQueryRequest(req))
-            .await?;
-        let mut parts = Vec::new();
-        while let Some(next) = stream.next().await {
-            parts.push(next?);
+    pub async fn execute_query(&mut self, query: Query) -> YdbResult<()> {
+        let mut session = self.create_session().await?;
+        let res = session.execute_query(query).await?;
+        println!("Size of results: {}", res.len());
+        for r in res {
+            if let Some(set) = r.result_set {
+                for r in set.rows {
+                    println!("{r:?}");
+                }
+                for c in set.columns {
+                    println!("columns {}", c.name);
+                }
+            }
         }
-        Ok(parts)
+        Ok(())
     }
 
     // /// Kick off a long-running script via Operation API (no payload result).

@@ -52,7 +52,7 @@ pub(crate) mod client_common;
 pub(crate) mod client_coordination;
 #[cfg(test)]
 mod client_directory_test_integration;
-//pub(crate) mod client_query_service;
+pub(crate) mod client_query_service;
 pub(crate) mod client_scheme;
 pub(crate) mod client_table;
 #[cfg(test)]
@@ -146,6 +146,7 @@ pub use client_builder::ClientBuilder;
 // full enum pub types
 pub use client_table::{RetryOptions, TableClient, TransactionOptions};
 
+pub use client_query_service::QueryClient;
 // full enum pub types
 //pub use client_query_service::QueryClient;
 

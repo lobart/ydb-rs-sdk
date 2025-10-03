@@ -1,9 +1,10 @@
 use crate::errors::YdbResult;
 use crate::types::Value;
+use crate::YdbError;
 use std::collections::HashMap;
 use std::str::FromStr;
-
-use crate::YdbError;
+use ydb_grpc::ydb_proto::query::transaction_control::TxSelector;
+use ydb_grpc::ydb_proto::query::{QueryContent, Syntax, TransactionControl};
 use ydb_grpc::ydb_proto::TypedValue;
 
 /// Query object
@@ -12,6 +13,7 @@ pub struct Query {
     pub(crate) text: String,
     pub(crate) parameters: HashMap<String, Value>,
     pub(crate) keep_in_cache: bool,
+    pub(crate) tx_control: Option<TransactionControl>,
     force_keep_in_cache: bool,
 }
 
@@ -23,6 +25,7 @@ impl Query {
             parameters: HashMap::new(),
             keep_in_cache: false,
             force_keep_in_cache: false,
+            tx_control: None,
         }
     }
 
@@ -83,12 +86,30 @@ impl Query {
         self
     }
 
-    pub(crate) fn query_to_proto(&self) -> ydb_grpc::ydb_proto::table::Query {
+    pub(crate) fn query_to_table_proto(&self) -> ydb_grpc::ydb_proto::table::Query {
         ydb_grpc::ydb_proto::table::Query {
             query: Some(ydb_grpc::ydb_proto::table::query::Query::YqlText(
                 self.text.clone(),
             )),
         }
+    }
+
+    pub(crate) fn query_to_query_service_proto(
+        &self,
+        syntax: Syntax,
+    ) -> ydb_grpc::ydb_proto::query::execute_query_request::Query {
+        ydb_grpc::ydb_proto::query::execute_query_request::Query::QueryContent(QueryContent {
+            syntax: syntax.into(),
+            text: self.text.clone(),
+        })
+    }
+
+    pub fn with_tx_control(mut self, commit_tx: bool, tx_control: Option<TxSelector>) -> Self {
+        let _ = self.tx_control.insert(TransactionControl {
+            commit_tx,
+            tx_selector: tx_control,
+        });
+        self
     }
 
     pub(crate) fn params_to_proto(self) -> YdbResult<HashMap<String, TypedValue>> {

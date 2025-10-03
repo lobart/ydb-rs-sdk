@@ -9,7 +9,7 @@ use crate::grpc_wrapper::raw_table_service::transaction_control::{
 use crate::grpc_wrapper::runtime_interceptors::InterceptedChannel;
 use crate::query::Query;
 use crate::result::QueryResult;
-use crate::session::{Session, SessionInterface, TableSessionClient};
+use crate::session::{Session, SessionInterface, TableSession, TableSessionClient};
 use crate::session_pool::SessionPool;
 use async_trait::async_trait;
 use itertools::Itertools;
@@ -69,12 +69,16 @@ pub trait Transaction: Send + Sync {
 pub(crate) struct AutoCommit {
     mode: Mode,
     error_on_truncate_response: bool,
-    session_pool: SessionPool,
+    session_pool: SessionPool<TableSession>,
     timeouts: TimeoutSettings,
 }
 
 impl AutoCommit {
-    pub(crate) fn new(session_pool: SessionPool, mode: Mode, timeouts: TimeoutSettings) -> Self {
+    pub(crate) fn new(
+        session_pool: SessionPool<TableSession>,
+        mode: Mode,
+        timeouts: TimeoutSettings,
+    ) -> Self {
         Self {
             mode,
             session_pool,
@@ -137,7 +141,7 @@ impl Transaction for AutoCommit {
 
 pub(crate) struct SerializableReadWriteTx {
     error_on_truncate_response: bool,
-    session_pool: SessionPool,
+    session_pool: SessionPool<TableSession>,
 
     id: Option<String>,
     session: Option<Session<TableSessionClient>>,
@@ -148,7 +152,7 @@ pub(crate) struct SerializableReadWriteTx {
 }
 
 impl SerializableReadWriteTx {
-    pub(crate) fn new(session_pool: SessionPool, timeouts: TimeoutSettings) -> Self {
+    pub(crate) fn new(session_pool: SessionPool<TableSession>, timeouts: TimeoutSettings) -> Self {
         Self {
             error_on_truncate_response: false,
             session_pool,

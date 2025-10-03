@@ -1,25 +1,26 @@
 use crate::client::TimeoutSettings;
 use crate::client_table::TableServiceClientType;
 use crate::errors::{YdbError, YdbResult};
-use crate::query::Query;
-use crate::result::{QueryResult, StreamResult};
-use crate::types::Value;
-use derivative::Derivative;
-use itertools::Itertools;
-use std::sync::atomic::{AtomicI64, Ordering};
-
 use crate::grpc_connection_manager::GrpcConnectionManager;
 use crate::grpc_wrapper::raw_table_service::client::{
     CollectStatsMode, RawTableClient, SessionStatus,
 };
 use crate::grpc_wrapper::runtime_interceptors::InterceptedChannel;
+use crate::result::{QueryResult, StreamResult};
+use crate::types::Value;
+use derivative::Derivative;
+use futures_util::StreamExt;
+use itertools::Itertools;
+use std::sync::atomic::{AtomicI64, Ordering};
 
 use crate::grpc_wrapper::raw_errors::RawResult;
 use crate::grpc_wrapper::raw_query_service::begin_transaction::RawBeginTransactionRequest as BeginTransactionQueryServiceRequest;
+use crate::grpc_wrapper::raw_query_service::begin_transaction::RawBeginTransactionRequest as RawBeginTransactionQueryServiceRequest;
 use crate::grpc_wrapper::raw_query_service::client::{
     RawQueryClient as RawQueryServiceClient, RawQueryClient,
 };
 use crate::grpc_wrapper::raw_query_service::commit_transaction::RawCommitTransactionRequest as RawCommitTransactionQueryServiceRequest;
+use crate::grpc_wrapper::raw_query_service::execute_query::RawExecuteQueryRequest;
 use crate::grpc_wrapper::raw_query_service::rollback_transaction::RawRollbackTransactionRequest as RawRollbackTransactionQueryServiceRequest;
 use crate::grpc_wrapper::raw_table_service::bulk_upsert::RawBulkUpsertRequest;
 use crate::grpc_wrapper::raw_table_service::commit_transaction::RawCommitTransactionRequest as RawCommitTransactionTableRequest;
@@ -32,11 +33,15 @@ use crate::grpc_wrapper::raw_table_service::keepalive::RawKeepAliveRequest;
 use crate::grpc_wrapper::raw_table_service::rollback_transaction::RawRollbackTransactionRequest as RawRollbackTransactionTableRequest;
 use crate::table_service_types::CopyTableItem;
 use crate::trace_helpers::ensure_len_string;
+use crate::Query;
 use tracing::{debug, trace};
+use ydb_grpc::ydb_proto::query::transaction_settings::TxMode;
 use ydb_grpc::ydb_proto::query::v1::query_service_client::QueryServiceClient;
 use ydb_grpc::ydb_proto::query::{
-    CommitTransactionRequest as CommitTransactionQueryServiceRequest,
-    RollbackTransactionRequest as RollbackTransactionQueryServiceRequest,
+    execute_query_request, CommitTransactionRequest as CommitTransactionQueryServiceRequest,
+    ExecuteQueryRequest, ExecuteQueryResponsePart,
+    RollbackTransactionRequest as RollbackTransactionQueryServiceRequest, Syntax,
+    TransactionControl, TransactionSettings,
 };
 use ydb_grpc::ydb_proto::table::v1::table_service_client::TableServiceClient;
 use ydb_grpc::ydb_proto::table::{execute_scan_query_request, ExecuteScanQueryRequest};
@@ -55,7 +60,7 @@ pub(crate) trait SessionInterface<C>
 where
     C: Client,
 {
-    async fn begin_transaction(&mut self, tx_id: String) -> YdbResult<()>;
+    async fn begin_transaction(&mut self, tx_mode: TxMode) -> YdbResult<()>;
     async fn commit_transaction(&mut self, tx_id: String) -> YdbResult<()>;
     async fn rollback_transaction(&mut self, tx_id: String) -> YdbResult<()>;
 }
@@ -94,9 +99,13 @@ where
 
     timeouts: TimeoutSettings,
 }
-impl SessionInterface<TableSessionClient> for Session<TableSessionClient> {
-    async fn begin_transaction(&mut self, tx_id: String) -> YdbResult<()> {
-        todo!()
+
+pub(crate) type TableSession = Session<TableSessionClient>;
+pub(crate) type QueryServiceSession = Session<QueryServiceSessionClient>;
+
+impl SessionInterface<TableSessionClient> for TableSession {
+    async fn begin_transaction(&mut self, _tx_mode: TxMode) -> YdbResult<()> {
+        unimplemented!()
     }
 
     async fn commit_transaction(&mut self, tx_id: String) -> YdbResult<()> {
@@ -189,7 +198,7 @@ impl<C: Client> Session<C> {
     }
 }
 
-impl Session<TableSessionClient> {
+impl TableSession {
     pub(crate) async fn keepalive(&mut self) -> YdbResult<()> {
         let mut table = self.get_client().await?;
         let res = table
@@ -268,7 +277,7 @@ impl Session<TableSessionClient> {
     #[tracing::instrument(skip(self, query), fields(req_number=req_number()))]
     pub async fn execute_scan_query(&mut self, query: Query) -> YdbResult<StreamResult> {
         let req = ExecuteScanQueryRequest {
-            query: Some(query.query_to_proto()),
+            query: Some(query.query_to_table_proto()),
             parameters: query.params_to_proto()?,
             mode: execute_scan_query_request::Mode::Exec as i32,
             ..ExecuteScanQueryRequest::default()
@@ -315,14 +324,24 @@ impl Session<TableSessionClient> {
     }
 }
 
-impl SessionInterface<QueryServiceSessionClient> for Session<QueryServiceSessionClient> {
-    async fn begin_transaction(&mut self, tx_id: String) -> YdbResult<()> {
-        todo!()
+impl SessionInterface<QueryServiceSessionClient> for QueryServiceSession {
+    async fn begin_transaction(&mut self, tx_mode: TxMode) -> YdbResult<()> {
+        let mut client = self.get_client().await?;
+        let res = client
+            .begin_transaction(RawBeginTransactionQueryServiceRequest {
+                session_id: self.id.clone(),
+                settings: TransactionSettings {
+                    tx_mode: Some(tx_mode),
+                },
+            })
+            .await;
+        self.handle_raw_result(res)?;
+        Ok(())
     }
 
     async fn commit_transaction(&mut self, tx_id: String) -> YdbResult<()> {
-        let mut table = self.get_client().await?;
-        let res = table
+        let mut client = self.get_client().await?;
+        let res = client
             .commit_transaction(RawCommitTransactionQueryServiceRequest {
                 session_id: self.id.clone(),
                 tx_id,
@@ -332,8 +351,8 @@ impl SessionInterface<QueryServiceSessionClient> for Session<QueryServiceSession
         Ok(())
     }
     async fn rollback_transaction(&mut self, tx_id: String) -> YdbResult<()> {
-        let mut table = self.get_client().await?;
-        let res = table
+        let mut client = self.get_client().await?;
+        let res = client
             .rollback_transaction(RawRollbackTransactionQueryServiceRequest {
                 session_id: self.id.clone(),
                 tx_id,
@@ -341,6 +360,36 @@ impl SessionInterface<QueryServiceSessionClient> for Session<QueryServiceSession
             .await;
 
         self.handle_raw_result(res)
+    }
+}
+
+impl QueryServiceSession {
+    pub async fn execute_query(
+        &mut self,
+        query: Query,
+    ) -> YdbResult<Vec<ExecuteQueryResponsePart>> {
+        let mut client = self.get_client().await?;
+        let execute_query_req: ExecuteQueryRequest = ExecuteQueryRequest {
+            session_id: self.id.clone(),
+            tx_control: query.tx_control.clone(),
+            query: Some(query.query_to_query_service_proto(Syntax::YqlV1)),
+            parameters: query.params_to_proto()?,
+            exec_mode: ydb_grpc::ydb_proto::query::ExecMode::Execute.into(),
+            stats_mode: ydb_grpc::ydb_proto::query::StatsMode::Unspecified.into(),
+            ..ExecuteQueryRequest::default()
+        };
+        let mut stream = client.execute_query_stream(execute_query_req).await?;
+        let mut result = vec![];
+        while let Some(res) = stream.next().await {
+            match res {
+                Ok(part) => {
+                    println!("Result is saved!{:?}", part);
+                    result.push(part)
+                }
+                Err(_) => return Ok(result),
+            }
+        }
+        Ok(result)
     }
 }
 

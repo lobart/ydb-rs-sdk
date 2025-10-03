@@ -272,7 +272,7 @@ impl Value {
         })))
     }
 
-    pub(crate) fn optional_from(t: Value, value: Option<Value>) -> YdbResult<Self> {
+    pub fn optional_from(t: Value, value: Option<Value>) -> YdbResult<Self> {
         if let Some(value) = &value {
             if std::mem::discriminant(&t) != std::mem::discriminant(value) {
                 return Err(YdbError::Custom(format!("failed optional_from: type and value has different enum-types. type: '{t:?}', value: '{value:?}'")));
