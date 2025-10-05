@@ -1,3 +1,4 @@
+pub(crate) mod attach_session;
 pub(crate) mod begin_transaction;
 pub(crate) mod client;
 pub(crate) mod commit_transaction;

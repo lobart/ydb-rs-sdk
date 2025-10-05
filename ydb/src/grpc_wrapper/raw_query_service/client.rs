@@ -1,6 +1,7 @@
 use crate::grpc_wrapper::raw_errors::RawError;
 use ydb_grpc::ydb_proto::query::{
-    ExecuteQueryRequest, FetchScriptResultsRequest, FetchScriptResultsResponse,
+    AttachSessionRequest, DeleteSessionRequest, ExecuteQueryRequest, FetchScriptResultsRequest,
+    FetchScriptResultsResponse,
 };
 
 #[derive(Debug)]
@@ -65,7 +66,7 @@ impl RawQueryClient {
         Ok(out)
     }
 
-    pub async fn delete_session(&mut self, req: RawDeleteSessionRequest) -> RawResult<()> {
+    pub async fn delete_session(&mut self, req: DeleteSessionRequest) -> RawResult<()> {
         let grpc_req: query::DeleteSessionRequest = req.into();
         let _ = self.service.delete_session(grpc_req).await?;
         Ok(())
@@ -109,6 +110,13 @@ impl RawQueryClient {
     ) -> RawResult<tonic::Streaming<query::ExecuteQueryResponsePart>> {
         let resp = self.service.execute_query(req).await?;
         Ok(resp.into_inner())
+    }
+
+    pub async fn attach_session(
+        &mut self,
+        req: AttachSessionRequest,
+    ) -> RawResult<tonic::Streaming<query::SessionState>> {
+        Ok(self.service.attach_session(req).await?.into_inner())
     }
 
     pub async fn execute_script(&mut self, req: RawExecuteScriptRequest) -> RawResult<()> {

@@ -10,7 +10,7 @@ use ydb_grpc::ydb_proto::TypedValue;
 /// Query object
 #[derive(Clone)]
 pub struct Query {
-    pub(crate) text: String,
+    pub text: String,
     pub(crate) parameters: HashMap<String, Value>,
     pub(crate) keep_in_cache: bool,
     pub(crate) tx_control: Option<TransactionControl>,

@@ -14,18 +14,23 @@ use crate::client_table::{Retry, TimeoutRetrier};
 use crate::errors::NeedRetry;
 use crate::grpc_connection_manager::GrpcConnectionManager;
 use crate::grpc_wrapper::raw_query_service::execute_query::RawExecuteQueryRequest;
-use crate::session::{QueryServiceSession, TableSession};
+use crate::session::{QueryServiceSession, SessionInterface, TableSession};
 use crate::session_pool::SessionPool;
 use crate::transaction::{AutoCommit, SerializableReadWriteTx};
 use crate::{Mode, Query, StreamResult, Transaction, TransactionOptions, YdbResult};
 use futures_util::StreamExt;
+use tokio::io::AsyncWriteExt;
+use tokio::sync::RwLock;
+use tonic::Streaming;
 use ydb_grpc::ydb_proto::query;
-use ydb_grpc::ydb_proto::query::{QueryContent, SerializableModeSettings, Syntax};
+use ydb_grpc::ydb_proto::query::transaction_settings::TxMode;
+use ydb_grpc::ydb_proto::query::{QueryContent, SerializableModeSettings, SessionState, Syntax};
 
 #[derive(Clone)]
 pub struct QueryClient {
     error_on_truncate: bool,
     session_pool: SessionPool<QueryServiceSession>,
+    active_session: Option<Arc<RwLock<(QueryServiceSession, Streaming<SessionState>)>>>,
     retrier: Arc<Box<dyn Retry>>,
     transaction_options: TransactionOptions,
     idempotent_operation: bool,
@@ -43,6 +48,7 @@ impl QueryClient {
                 Box::new(connection_manager),
                 timeouts,
             ),
+            active_session: None,
             retrier: Arc::new(Box::<crate::client_table::TimeoutRetrier>::default()),
             transaction_options: TransactionOptions::new(),
             idempotent_operation: false,
@@ -141,9 +147,34 @@ impl QueryClient {
         }
     }
 
-    pub async fn execute_query(&mut self, query: Query) -> YdbResult<()> {
+    pub async fn commit_transaction(&mut self, tx_id: String) -> YdbResult<()> {
         let mut session = self.create_session().await?;
-        let res = session.execute_query(query).await?;
+        let stream_attached = session.attach_session().await?;
+        session.commit_transaction(tx_id).await?;
+        Ok(())
+    }
+
+    pub async fn begin_transaction(&mut self, tx_mode: TxMode) -> YdbResult<()> {
+        let mut session = self.create_session().await?;
+        let stream_attached = session.attach_session().await?;
+        session.begin_transaction(tx_mode).await?;
+        Ok(())
+    }
+
+    pub async fn execute_query(&mut self, query: Query) -> YdbResult<()> {
+        let mut session = if let Some(active_session) = &self.active_session {
+            active_session.clone()
+        } else {
+            let mut new_session = self.create_session().await?;
+            let stream_attached = new_session.attach_session().await?;
+            Arc::new(RwLock::new((new_session, stream_attached)))
+        };
+        self.active_session = Some(session.clone());
+        let mut res = vec![];
+        {
+            let mut guard = session.write().await;
+            res = (*guard).0.execute_query(query).await?;
+        }
         println!("Size of results: {}", res.len());
         for r in res {
             if let Some(set) = r.result_set {

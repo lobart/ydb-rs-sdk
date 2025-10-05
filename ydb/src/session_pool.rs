@@ -38,11 +38,11 @@ impl SessionFabric<TableSession> for GrpcConnectionManager {
 #[async_trait]
 impl SessionFabric<QueryServiceSession> for GrpcConnectionManager {
     async fn create_session(&self, timeouts: TimeoutSettings) -> YdbResult<QueryServiceSession> {
-        let mut table = self
+        let mut client = self
             .get_auth_service(RawTableClient::new)
             .await?
             .with_timeout(timeouts);
-        let session_res = table.create_session().await?;
+        let session_res = client.create_session().await?;
         let session =
             QueryServiceSession::new(session_res.id, self.clone(), TimeoutSettings::default());
         Ok(session)
@@ -165,7 +165,7 @@ impl SessionPool<QueryServiceSession> {
         };
 
         session.on_drop(Box::new(move |s: &mut QueryServiceSession| {
-            trace!("moved to pool: {}", s.id);
+            println!("moved to pool: {}", s.id.clone());
             let item = IdleSessionItem {
                 idle_since: tokio::time::Instant::now(),
                 session: s.clone_without_ondrop(),
