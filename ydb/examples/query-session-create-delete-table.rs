@@ -41,7 +41,7 @@ async fn create_tables(client: &mut QueryClient) -> YdbResult<()> {
 			series_id Bytes,
 			title Text,
 			series_info Text,
-			release_date Text,
+			release_date Date,
 			comment Text,
 
 			PRIMARY KEY(series_id));"
@@ -88,7 +88,7 @@ async fn fill_tables(
 			series_id: Bytes,
 			title: Text,
 			series_info: Text,
-			release_date: Text,
+			release_date: Date,
 			comment: Text>>;
 
 		REPLACE INTO {prefix}
