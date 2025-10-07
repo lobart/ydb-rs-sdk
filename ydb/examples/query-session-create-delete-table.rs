@@ -1,12 +1,15 @@
 use std::time::Duration;
 use tokio::time::timeout;
-use ydb::{ydb_params, ClientBuilder, Query, QueryClient, Value, YdbError, YdbResult};
+use uuid::Uuid;
+use ydb::{ydb_params, ydb_struct, Bytes, ClientBuilder, Query, QueryClient, Value, YdbError, YdbResult};
 use ydb_grpc::ydb_proto::query::transaction_settings::TxMode;
 use ydb_grpc::ydb_proto::query::{SnapshotModeSettings, TransactionSettings};
 
 mod common;
 use common::{get_data_for_it_crowd, get_data_for_silicon_valley};
 use ydb_grpc::ydb_proto::query::transaction_control::TxSelector;
+
+use crate::common::date;
 
 #[tokio::main]
 async fn main() -> YdbResult<()> {
@@ -147,6 +150,7 @@ async fn fill_tables(
     .with_params(ydb_params!(
         "$episodes_list" => episodes
     ));
+
     client.execute_query(query_fill_series).await?;
     client.execute_query(query_fill_seasons).await?;
     client.execute_query(query_fill_episodes).await?;

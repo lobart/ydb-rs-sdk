@@ -7,10 +7,10 @@ pub fn get_data_for_it_crowd() -> YdbResult<(Value, Value, Value)> {
     let series_id = Uuid::new_v4().to_string();
     let series = ydb_struct!(
         "series_id" => Value::Bytes(Bytes::from(series_id.clone())),
-        "release_date" => Value::Date(date("2008-11-21")),
         "title" => "IT Crowd",
         "series_info" => "The IT Crowd is a British sitcom produced by Channel 4, written by Graham Linehan, produced by \
          Ash Atalla and starring Chris O'Dowd, Richard Ayoade, Katherine Parkinson, and Matt Berry.",
+        "release_date" => Value::Date(date("2008-11-21")),
         "comment" => ""
     );
     let seasons_ids: Vec<String> = (0..5).map(|_| Uuid::new_v4().to_string()).collect();
@@ -127,10 +127,10 @@ pub fn get_data_for_silicon_valley() -> YdbResult<(Value, Value, Value)> {
     let series_id = Uuid::new_v4().to_string();
     let series = ydb_struct!(
         "series_id" => Value::Bytes(Bytes::from(series_id.clone())),
-        "release_date" => Value::Date(date("2008-11-21")),
         "title" => "Silicon Valley",
         "series_info" => "Silicon Valley is an American comedy television series created by Mike Judge, John Altschuler and \
          Dave Krinsky. The series focuses on five young men who founded a startup company in Silicon Valley.",
+        "release_date" => Value::Date(date("2008-11-21")),
         "comment" => ""
     );
 
@@ -280,7 +280,7 @@ pub fn get_data_for_silicon_valley() -> YdbResult<(Value, Value, Value)> {
     Ok((list_series, list_seasons, list_episodes))
 }
 
-fn date(date_str: &str) -> SystemTime {
+pub fn date(date_str: &str) -> SystemTime {
     const DATE_ISO8601: &str = "%Y-%m-%d";
     let datetime = chrono::NaiveDate::parse_from_str(date_str, DATE_ISO8601)
         .unwrap_or_else(|_| panic!("Invalid date format: {}", date_str))

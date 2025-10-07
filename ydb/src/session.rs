@@ -400,11 +400,11 @@ impl QueryServiceSession {
         let mut client = self.get_client().await?;
         let execute_query_req: ExecuteQueryRequest = ExecuteQueryRequest {
             session_id: self.id.clone(),
-            tx_control: query.tx_control.clone(),
-            query: Some(query.query_to_query_service_proto(Syntax::YqlV1)),
+            // tx_control: query.tx_control.clone(),
+            query: Some(query.query_to_query_service_proto(Syntax::Unspecified)),
             parameters: query.params_to_proto()?,
             exec_mode: ydb_grpc::ydb_proto::query::ExecMode::Execute.into(),
-            stats_mode: ydb_grpc::ydb_proto::query::StatsMode::Unspecified.into(),
+            // stats_mode: ydb_grpc::ydb_proto::query::StatsMode::Unspecified.into(),
             ..ExecuteQueryRequest::default()
         };
         let mut stream = client.execute_query_stream(execute_query_req).await?;
