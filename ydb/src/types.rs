@@ -266,30 +266,16 @@ impl Value {
                 return Err(YdbError::Custom(format!("failed list_from: type and value has different enum-types. index: {index}, type: '{example_value:?}', value: '{value:?}'")));
             }
 
-            match &example_value {
-                Value::Struct(example_value_struct) => {
-                    for (i, value) in values.iter().enumerate() {
-                        match &value {
-                            Value::Struct(value_struct) => {
-                                if value_struct.fields_name != example_value_struct.fields_name {
-                                    return Err(YdbError::Custom(format!(
-                                        "failed list_from: fields of value struct with index `{i}`: '{0:?}' is not equal to fields of example value struct: '{1:?}'",
-                                        value_struct.fields_name, example_value_struct.fields_name
-                                    )));
-                                };
-                            }
-                            _ => {
-                                return Err(YdbError::Custom(format!(
-                                    "failed list_from: value with index `{i}`: '{value:?}' is not a ValueStruct"
-                                )));
-                            }
+            if let Value::Struct(example_value_struct) = &example_value {
+                for (i, value) in values.iter().enumerate() {
+                    if let Value::Struct(value_struct) = &value {
+                        if value_struct.fields_name != example_value_struct.fields_name {
+                            return Err(YdbError::Custom(format!(
+                                "failed list_from: fields of value struct with index `{i}`: '{:?}' is not equal to fields of example value struct: '{:?}'",
+                                value_struct.fields_name, example_value_struct.fields_name
+                            )));
                         }
                     }
-                }
-                _ => {
-                    return Err(YdbError::Custom(format!(
-                        "failed list_from: example value: '{example_value:?}' is not a ValueStruct"
-                    )));
                 }
             }
         }
