@@ -265,6 +265,19 @@ impl Value {
             if std::mem::discriminant(&example_value) != std::mem::discriminant(value) {
                 return Err(YdbError::Custom(format!("failed list_from: type and value has different enum-types. index: {index}, type: '{example_value:?}', value: '{value:?}'")));
             }
+
+            if let Value::Struct(example_value_struct) = &example_value {
+                for (i, value) in values.iter().enumerate() {
+                    if let Value::Struct(value_struct) = &value {
+                        if value_struct.fields_name != example_value_struct.fields_name {
+                            return Err(YdbError::Custom(format!(
+                                "failed list_from: fields of value struct with index `{i}`: '{:?}' is not equal to fields of example value struct: '{:?}'",
+                                value_struct.fields_name, example_value_struct.fields_name
+                            )));
+                        }
+                    }
+                }
+            }
         }
 
         Ok(Value::List(Box::new(ValueList {
