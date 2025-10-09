@@ -90,7 +90,7 @@ impl Client {
     }
 }
 
-const DEFAULT_OPERATION_TIMEOUT: Duration = Duration::from_secs(1);
+const DEFAULT_OPERATION_TIMEOUT: Duration = Duration::from_secs(600);
 
 #[cfg_attr(not(feature = "force-exhaustive-all"), non_exhaustive)]
 #[derive(Copy, Clone, Debug)]
