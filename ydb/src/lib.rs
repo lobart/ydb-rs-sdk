@@ -142,6 +142,7 @@ pub use client::{Client, TimeoutSettings};
 
 // full enum pub types
 pub use client_builder::ClientBuilder;
+
 // full enum pub types
 pub use client_table::{RetryOptions, TableClient, TransactionOptions};
 
