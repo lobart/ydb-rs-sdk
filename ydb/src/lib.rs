@@ -138,7 +138,8 @@ pub use client_topic::topicwriter::writer_options::{
     TopicWriterRetrySettings,
 };
 // full enum pub types
-pub use client::Client;
+pub use client::{Client, TimeoutSettings};
+
 // full enum pub types
 pub use client_builder::ClientBuilder;
 // full enum pub types
