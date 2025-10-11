@@ -98,6 +98,7 @@ simple_convert!(f32, Value::Float);
 simple_convert!(f64, Value::Double, Value::Float);
 simple_convert!(SystemTime, Value::Timestamp, Value::Date, Value::DateTime);
 simple_convert!(decimal_rs::Decimal, Value::Decimal);
+simple_convert!(uuid::Uuid, Value::Uuid);
 
 // Impl additional Value From
 impl From<&str> for Value {

@@ -93,6 +93,7 @@ pub enum Value {
     Struct(ValueStruct),
 
     Decimal(decimal_rs::Decimal),
+    Uuid(uuid::Uuid),
 }
 
 impl Value {
@@ -266,6 +267,19 @@ impl Value {
             }
         }
 
+        if let Value::Struct(example_value_struct) = &example_value {
+            for (i, value) in values.iter().enumerate() {
+                if let Value::Struct(value_struct) = &value {
+                    if value_struct.fields_name != example_value_struct.fields_name {
+                        return Err(YdbError::Custom(format!(
+                                "failed list_from: fields of value struct with index `{i}`: '{:?}' is not equal to fields of example value struct: '{:?}'",
+                                value_struct.fields_name, example_value_struct.fields_name
+                            )));
+                    }
+                }
+            }
+        }
+
         Ok(Value::List(Box::new(ValueList {
             t: example_value,
             values,
@@ -405,6 +419,7 @@ impl Value {
             Self::List(items) => Self::to_typed_value_list(*items)?,
             Value::Struct(s) => { Self::to_typed_struct(s) }?,
             Self::Decimal(val) => Self::to_typed_decimal(val)?,
+            Self::Uuid(val) => Self::to_typed_uuid(val)?,
         };
         Ok(res)
     }
@@ -421,6 +436,27 @@ impl Value {
             }),
             value: Some(ydb_proto::Value {
                 value: Some(ydb_proto::value::Value::TextValue(val.to_string())),
+                ..ydb_proto::Value::default()
+            }),
+        })
+    }
+
+    fn to_typed_uuid(val: uuid::Uuid) -> YdbResult<ydb_proto::TypedValue> {
+        use ydb_proto::r#type::PrimitiveTypeId as pt;
+        use ydb_proto::value::Value as pv;
+
+        let (high, low) = val.as_u64_pair();
+
+        let high = high.swap_bytes();
+        let low = low.swap_bytes();
+
+        Ok(ydb_proto::TypedValue {
+            r#type: Some(ydb_proto::Type {
+                r#type: Some(ydb_proto::r#type::Type::TypeId(pt::Uuid.into())),
+            }),
+            value: Some(ydb_proto::Value {
+                value: Some(pv::Low128(low)),
+                high_128: high,
                 ..ydb_proto::Value::default()
             }),
         })
@@ -536,6 +572,8 @@ impl Value {
                     .parse::<decimal_rs::Decimal>()
                     .unwrap(),
             ),
+            Value::Uuid(uuid::Uuid::now_v7()),
+            Value::Uuid(uuid::Uuid::new_v4()),
         ];
 
         num_tests!(values, Value::Int8, i8);
