@@ -17,7 +17,6 @@ pub(crate) struct RawFetchScriptResultsResponse(pub FetchScriptResultsResponse);
 impl TryFrom<FetchScriptResultsResponse> for RawFetchScriptResultsResponse {
     type Error = RawError;
     fn try_from(value: FetchScriptResultsResponse) -> Result<Self, Self::Error> {
-        // If you want strict status/issue handling, add checks here similar to other wrappers.
         Ok(Self(value))
     }
 }
@@ -86,7 +85,6 @@ impl RawQueryClient {
         &mut self,
         req: RawCommitTransactionRequest,
     ) -> RawResult<RawCommitTransactionResult> {
-        // CommitTransactionResponse is a plain message (not an Operation)
         let grpc_req: query::CommitTransactionRequest = req.into();
         let resp = self.service.commit_transaction(grpc_req).await?;
         let inner = resp.into_inner();
@@ -101,8 +99,6 @@ impl RawQueryClient {
         let _ = self.service.rollback_transaction(grpc_req).await?;
         Ok(())
     }
-
-    // ---- Streaming & operation-style calls ---------------------------------
 
     pub async fn execute_query_stream(
         &mut self,
@@ -120,7 +116,6 @@ impl RawQueryClient {
     }
 
     pub async fn execute_script(&mut self, req: RawExecuteScriptRequest) -> RawResult<()> {
-        // ExecuteScript uses OperationParams but returns no payload here
         let grpc_req: query::ExecuteScriptRequest = req.into();
         let _ = self.service.execute_script(grpc_req).await?;
         Ok(())

@@ -1,8 +1,8 @@
 use crate::errors::{YdbError, YdbResult};
 use std::collections::HashMap;
 
-use crate::grpc_wrapper::raw_table_service::value::r#type::RawType;
-use crate::grpc_wrapper::raw_table_service::value::RawColumn;
+use crate::grpc_wrapper::value::r#type::RawType;
+use crate::grpc_wrapper::value::RawColumn;
 use std::convert::TryInto;
 use std::fmt::Debug;
 use std::num::TryFromIntError;
@@ -378,19 +378,16 @@ impl Value {
             Self::Uint64(val) => proto_typed_value(pt::Uint64, pv::Uint64Value(val)),
             Self::Float(val) => proto_typed_value(pt::Float, pv::FloatValue(val)),
             Self::Double(val) => proto_typed_value(pt::Double, pv::DoubleValue(val)),
-            Self::Date(val) => {
-                println!("Date: {:?}", self);
-                proto_typed_value(
-                    pt::Date,
-                    pv::Uint32Value(
-                        (val.duration_since(SystemTime::UNIX_EPOCH)
-                            .unwrap()
-                            .as_secs()
-                            / SECONDS_PER_DAY)
-                            .try_into()?,
-                    ),
-                )
-            }
+            Self::Date(val) => proto_typed_value(
+                pt::Date,
+                pv::Uint32Value(
+                    (val.duration_since(SystemTime::UNIX_EPOCH)
+                        .unwrap()
+                        .as_secs()
+                        / SECONDS_PER_DAY)
+                        .try_into()?,
+                ),
+            ),
             Self::DateTime(val) => proto_typed_value(
                 pt::Datetime,
                 pv::Uint32Value(

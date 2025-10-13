@@ -10,6 +10,7 @@ use crate::grpc_connection_manager::GrpcConnectionManager;
 
 use crate::grpc_wrapper::raw_table_service::client::RawTableClient;
 use crate::grpc_wrapper::runtime_interceptors::InterceptedChannel;
+use crate::result::{StreamQueryResult, StreamTableResult};
 use crate::table_service_types::CopyTableItem;
 use crate::{Query, StreamResult};
 use num::pow;
@@ -236,7 +237,7 @@ impl TableClient {
 
     /// Execute scan query. The method will auto-retry errors while start query execution,
     /// but no retries after server start streaming result.
-    pub async fn retry_execute_scan_query(&self, query: Query) -> YdbResult<StreamResult> {
+    pub async fn retry_execute_scan_query(&self, query: Query) -> YdbResult<StreamTableResult> {
         self.retry(|| async {
             let mut session = self.create_session().await?;
             session.execute_scan_query(query.clone()).await

@@ -1,30 +1,22 @@
-use crate::client::TimeoutSettings;
-use crate::grpc_wrapper::raw_errors::RawError;
-use crate::grpc_wrapper::raw_errors::RawResult;
-use crate::grpc_wrapper::raw_query_service::fetch_script_results::{
-    RawFetchScriptResultsRequest, RawFetchScriptResultsResponse,
-};
-use crate::grpc_wrapper::raw_ydb_operation::RawOperationParams;
-use crate::grpc_wrapper::runtime_interceptors::InterceptedChannel;
 use std::future::Future;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use crate::client_table::{Retry, TimeoutRetrier};
-use crate::errors::NeedRetry;
-use crate::grpc_connection_manager::GrpcConnectionManager;
-use crate::grpc_wrapper::raw_query_service::execute_query::RawExecuteQueryRequest;
-use crate::session::{QueryServiceSession, SessionInterface, TableSession};
-use crate::session_pool::SessionPool;
-use crate::transaction::{AutoCommit, SerializableReadWriteTx};
-use crate::{Mode, Query, StreamResult, Transaction, TransactionOptions, YdbResult};
-use futures_util::StreamExt;
 use tokio::io::AsyncWriteExt;
 use tokio::sync::RwLock;
 use tonic::Streaming;
-use ydb_grpc::ydb_proto::query;
+
 use ydb_grpc::ydb_proto::query::transaction_settings::TxMode;
-use ydb_grpc::ydb_proto::query::{QueryContent, SerializableModeSettings, SessionState, Syntax};
+use ydb_grpc::ydb_proto::query::SessionState;
+
+use crate::client::TimeoutSettings;
+use crate::client_table::{Retry, TimeoutRetrier};
+use crate::errors::NeedRetry;
+use crate::grpc_connection_manager::GrpcConnectionManager;
+use crate::result::StreamQueryResult;
+use crate::session::{QueryServiceSession, SessionInterface};
+use crate::session_pool::SessionPool;
+use crate::{Query, Transaction, TransactionOptions, YdbResult};
 
 #[derive(Clone)]
 pub struct QueryClient {
@@ -161,7 +153,7 @@ impl QueryClient {
         Ok(())
     }
 
-    pub async fn execute_query(&mut self, query: Query) -> YdbResult<()> {
+    pub async fn execute_query(&mut self, query: Query) -> YdbResult<StreamQueryResult> {
         let mut session = if let Some(active_session) = &self.active_session {
             active_session.clone()
         } else {
@@ -170,23 +162,8 @@ impl QueryClient {
             Arc::new(RwLock::new((new_session, stream_attached)))
         };
         self.active_session = Some(session.clone());
-        let mut res = vec![];
-        {
-            let mut guard = session.write().await;
-            res = (*guard).0.execute_query(query).await?;
-        }
-        println!("Size of results: {}", res.len());
-        for r in res {
-            if let Some(set) = r.result_set {
-                for r in set.rows {
-                    println!("{r:?}");
-                }
-                for c in set.columns {
-                    println!("columns {}", c.name);
-                }
-            }
-        }
-        Ok(())
+        let res = (*session.write().await).0.execute_query(query).await?;
+        Ok(res)
     }
 
     // /// Kick off a long-running script via Operation API (no payload result).

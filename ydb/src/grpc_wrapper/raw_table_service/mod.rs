@@ -9,4 +9,3 @@ pub(crate) mod keepalive;
 pub(crate) mod query_stats;
 pub(crate) mod rollback_transaction;
 pub(crate) mod transaction_control;
-pub(crate) mod value;

@@ -1,17 +1,23 @@
+use std::collections::HashMap;
+use std::sync::Arc;
+use std::vec::IntoIter;
+
+use itertools::Itertools;
+use tracing::trace;
+
+use ydb_grpc::ydb_proto::issue;
+use ydb_grpc::ydb_proto::issue::IssueMessage;
+use ydb_grpc::ydb_proto::query::ExecuteQueryResponsePart;
+use ydb_grpc::ydb_proto::status_ids::StatusCode;
+use ydb_grpc::ydb_proto::table::ExecuteScanQueryPartialResponse;
+
 use crate::errors;
 use crate::errors::{YdbError, YdbResult, YdbStatusError};
 use crate::grpc::proto_issues_to_ydb_issues;
 use crate::grpc_wrapper::raw_table_service::execute_data_query::RawExecuteDataQueryResult;
-use crate::grpc_wrapper::raw_table_service::value::{RawResultSet, RawTypedValue, RawValue};
+use crate::grpc_wrapper::value::{RawResultSet, RawTypedValue, RawValue};
 use crate::trace_helpers::ensure_len_string;
 use crate::types::Value;
-use itertools::Itertools;
-use std::collections::HashMap;
-use std::sync::Arc;
-use std::vec::IntoIter;
-use tracing::trace;
-use ydb_grpc::ydb_proto::status_ids::StatusCode;
-use ydb_grpc::ydb_proto::table::ExecuteScanQueryPartialResponse;
 
 #[derive(Debug)]
 pub struct QueryResult {
@@ -183,35 +189,90 @@ impl Iterator for ResultSetRowsIter {
     }
 }
 
-pub struct StreamResult {
-    pub(crate) results: tonic::codec::Streaming<ExecuteScanQueryPartialResponse>,
+//refactor with generic for table and session
+pub struct StreamResult<T> {
+    pub(crate) results: tonic::codec::Streaming<T>,
 }
 
-impl StreamResult {
-    pub async fn next(&mut self) -> YdbResult<Option<ResultSet>> {
-        let partial_response = if let Some(partial_response) = self.results.message().await? {
-            partial_response
-        } else {
+pub(crate) trait StreamResultTrait {
+    fn status(&self) -> YdbResult<i32>;
+    fn issues(&self) -> YdbResult<&Vec<IssueMessage>>;
+    fn result_set(&self) -> YdbResult<Option<ResultSet>>;
+}
+
+impl StreamResultTrait for ExecuteQueryResponsePart {
+    fn status(&self) -> YdbResult<i32> {
+        Ok(self.status)
+    }
+
+    fn issues(&self) -> YdbResult<&Vec<IssueMessage>> {
+        Ok(&self.issues)
+    }
+
+    fn result_set(&self) -> YdbResult<Option<ResultSet>> {
+        let Some(proto_result_set) = self.result_set.clone() else {
             return Ok(None);
         };
-        if partial_response.status() != StatusCode::Success {
-            return Err(YdbError::YdbStatusError(YdbStatusError {
-                message: format!("{:?}", partial_response.issues),
-                operation_status: partial_response.status,
-                issues: proto_issues_to_ydb_issues(partial_response.issues),
-            }));
-        };
-        let proto_result_set = if let Some(partial_result) = partial_response.result {
-            if let Some(proto_result_set) = partial_result.result_set {
-                proto_result_set
-            } else {
-                return Ok(None);
-            }
-        } else {
-            return Err(YdbError::InternalError("unexpected empty result".into()));
-        };
+
         let raw_res = RawResultSet::try_from(proto_result_set)?;
         let result_set = ResultSet::try_from(raw_res)?;
         Ok(Some(result_set))
     }
 }
+
+impl StreamResultTrait for ExecuteScanQueryPartialResponse {
+    fn status(&self) -> YdbResult<i32> {
+        Ok(self.status)
+    }
+
+    fn issues(&self) -> YdbResult<&Vec<IssueMessage>> {
+        Ok(&self.issues)
+    }
+
+    fn result_set(&self) -> YdbResult<Option<ResultSet>> {
+        let proto_result_set = match &self.result {
+            Some(result) => result.result_set.as_ref(),
+            None => return Err(YdbError::InternalError("unexpected empty result".into())),
+        };
+
+        let proto_result_set = match proto_result_set {
+            Some(proto) => proto,
+            None => return Ok(None),
+        };
+
+        let raw_res = RawResultSet::try_from(proto_result_set.clone())?;
+        let result_set = ResultSet::try_from(raw_res)?;
+        Ok(Some(result_set))
+    }
+}
+
+impl<T: StreamResultTrait> StreamResult<T> {
+    pub async fn next(&mut self) -> YdbResult<Option<ResultSet>> {
+        let partial_response = self
+            .results
+            .message()
+            .await?
+            .ok_or(YdbError::EmptyResponse)?;
+
+        let status = partial_response.status()?;
+
+        if status != StatusCode::Success as i32 {
+            println!("status {:?}", status);
+            let issues = partial_response.issues()?;
+            return Err(YdbError::YdbStatusError(YdbStatusError {
+                message: issues
+                    .iter()
+                    .map(|issue| issue.message.clone())
+                    .collect::<Vec<_>>()
+                    .join(", "),
+                operation_status: status,
+                issues: proto_issues_to_ydb_issues(issues),
+            }));
+        }
+
+        partial_response.result_set()
+    }
+}
+
+pub(crate) type StreamTableResult = StreamResult<ExecuteScanQueryPartialResponse>;
+pub(crate) type StreamQueryResult = StreamResult<ExecuteQueryResponsePart>;

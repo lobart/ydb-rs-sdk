@@ -1,9 +1,9 @@
 use crate::grpc_wrapper::raw_errors::RawError;
 use crate::grpc_wrapper::raw_table_service::query_stats::RawQueryStatMode;
 use crate::grpc_wrapper::raw_table_service::transaction_control::RawTransactionControl;
-use crate::grpc_wrapper::raw_table_service::value::r#type::RawType;
-use crate::grpc_wrapper::raw_table_service::value::{RawResultSet, RawTypedValue};
 use crate::grpc_wrapper::raw_ydb_operation::RawOperationParams;
+use crate::grpc_wrapper::value::r#type::RawType;
+use crate::grpc_wrapper::value::{RawResultSet, RawTypedValue};
 use std::collections::HashMap;
 
 #[derive(serde::Serialize)]

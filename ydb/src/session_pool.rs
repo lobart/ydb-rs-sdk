@@ -285,8 +285,11 @@ mod test {
 
     #[tokio::test]
     async fn max_active_session() -> YdbResult<()> {
-        let pool = SessionPool::new(Box::new(SessionClientMock {}), TimeoutSettings::default())
-            .with_max_active_sessions(1);
+        let pool = SessionPool::<TableSession>::new(
+            Box::new(SessionClientMock {}),
+            TimeoutSettings::default(),
+        )
+        .with_max_active_sessions(1);
         let first_session = pool.session().await?;
 
         let (thread_started_sender, thread_started_receiver) = oneshot::channel();

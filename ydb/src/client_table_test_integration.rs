@@ -847,30 +847,36 @@ FROM
     let mut sum: i64 = 0;
     let mut item_count = 0;
     let mut result_set_count = 0;
-    while let Some(result_set) = res.next().await? {
+    while let Some(result_set) = res.next().await.ok() {
         result_set_count += 1;
 
         for mut row in result_set.into_iter() {
             item_count += 1;
-            match row.remove_field_by_name("id")? {
-                Value::Optional(boxed_id) => match boxed_id.value.unwrap() {
-                    Value::Int64(id) => {
-                        assert_eq!(id, expected_id);
-                        sum += id
-                    }
-                    id => panic!("unexpected ydb boxed_id type: {id:?}"),
-                },
-                id => panic!("unexpected ydb id type: {id:?}"),
-            };
 
-            match row.remove_field_by_name("val")? {
-                Value::Optional(boxed_val) => match boxed_val.value.unwrap() {
-                    Value::Bytes(content) => {
+            // Extract and validate ID
+            let id_value = row.remove_field_by_name("id")?;
+            let id = match id_value {
+                Value::Optional(boxed_id) => match boxed_id.value {
+                    Some(Value::Int64(id)) => id,
+                    Some(other) => panic!("unexpected ydb boxed_id type: {other:?}"),
+                    None => panic!("unexpected null id"),
+                },
+                other => panic!("unexpected ydb id type: {other:?}"),
+            };
+            assert_eq!(id, expected_id);
+            sum += id;
+
+            // Extract and validate value
+            let val_value = row.remove_field_by_name("val")?;
+            match val_value {
+                Value::Optional(boxed_val) => match boxed_val.value {
+                    Some(Value::Bytes(content)) => {
                         assert_eq!(gen_value_by_id(expected_id), Vec::<u8>::from(content))
                     }
-                    val => panic!("unexpected ydb id type: {val:?}"),
+                    Some(other) => panic!("unexpected ydb val type: {other:?}"),
+                    None => panic!("unexpected null val"),
                 },
-                val => panic!("unexpected ydb boxed_id type: {val:?}"),
+                other => panic!("unexpected ydb val type: {other:?}"),
             };
 
             expected_id += 1;

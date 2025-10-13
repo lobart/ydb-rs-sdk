@@ -7,10 +7,10 @@ pub fn get_data_for_it_crowd() -> YdbResult<(Value, Value, Value)> {
     let series_id = Uuid::new_v4().to_string();
     let series = ydb_struct!(
         "series_id" => Value::Bytes(Bytes::from(series_id.clone())),
-        "release_date" => "2006-02-21",
         "title" => "IT Crowd",
         "series_info" => "The IT Crowd is a British sitcom produced by Channel 4, written by Graham Linehan, produced by \
          Ash Atalla and starring Chris O'Dowd, Richard Ayoade, Katherine Parkinson, and Matt Berry.",
+        "release_date" => Value::Date(date("2006-02-21")),
         "comment" => ""
     );
     let seasons_ids: Vec<String> = (0..5).map(|_| Uuid::new_v4().to_string()).collect();
@@ -20,62 +20,62 @@ pub fn get_data_for_it_crowd() -> YdbResult<(Value, Value, Value)> {
             "series_id" => Value::Bytes(Bytes::from(series_id.clone())),
             "season_id" => Value::Bytes(Bytes::from(&(*seasons_ids[0]))),
             "title"=> "Season 1",
-            "first_aired"=> "2006-02-03",
-            "last_aired"=> "2006-03-03",
+            "first_aired"=> Value::Date(date("2006-02-03")),
+            "last_aired"=> Value::Date(date("2006-03-03")),
         ),
         ydb_struct!(
             "series_id" => Value::Bytes(Bytes::from(series_id.clone())),
             "season_id" => Value::Bytes(Bytes::from(&(*seasons_ids[1]))),
             "title"=> "Season 2",
-            "first_aired"=> "2007-08-24",
-            "last_aired"=> "2007-09-28",
+            "first_aired"=> Value::Date(date("2007-08-24")),
+            "last_aired"=> Value::Date(date("2007-09-28")),
         ),
         ydb_struct!(
             "series_id" => Value::Bytes(Bytes::from(series_id.clone())),
             "season_id" => Value::Bytes(Bytes::from(&(*seasons_ids[2]))),
             "title"=> "Season 3",
-            "first_aired"=> "2008-11-21",
-            "last_aired"=> "2008-12-26",
+            "first_aired"=> Value::Date(date("2008-11-21")),
+            "last_aired"=> Value::Date(date("2008-12-26")),
         ),
         ydb_struct!(
             "series_id" => Value::Bytes(Bytes::from(series_id.clone())),
             "season_id" => Value::Bytes(Bytes::from(&(*seasons_ids[3]))),
             "title"=> "Season 4",
-            "first_aired"=> "2010-06-25",
-            "last_aired"=> "2010-07-30",
+            "first_aired"=> Value::Date(date("2010-06-25")),
+            "last_aired"=> Value::Date(date("2010-07-30")),
         ),
     ];
     let episodes_1 = HashMap::from([
-        ("Yesterday's Jam", "2006-02-03"),
-        ("Calamity Jen", "2006-02-03"),
-        ("Fifty-Fifty", "2006-02-10"),
-        ("The Red Door", "2006-02-17"),
-        ("The Haunting of Bill Crouse", "2006-02-24"),
-        ("Aunt Irma Visits", "2006-03-03"),
+        ("Yesterday's Jam", date("2006-02-03")),
+        ("Calamity Jen", date("2006-02-03")),
+        ("Fifty-Fifty", date("2006-02-10")),
+        ("The Red Door", date("2006-02-17")),
+        ("The Haunting of Bill Crouse", date("2006-02-24")),
+        ("Aunt Irma Visits", date("2006-03-03")),
     ]);
     let episodes_2 = HashMap::from([
-        ("The Work Outing", "2006-08-24"),
-        ("Return of the Golden Child", "2007-08-31"),
-        ("Moss and the German", "2007-09-07"),
-        ("The Dinner Party", "2007-09-14"),
-        ("Smoke and Mirrors", "2007-09-21"),
-        ("Men Without Women", "2007-09-28"),
+        ("The Work Outing", date("2006-08-24")),
+        ("Return of the Golden Child", date("2007-08-31")),
+        ("Moss and the German", date("2007-09-07")),
+        ("The Dinner Party", date("2007-09-14")),
+        ("Smoke and Mirrors", date("2007-09-21")),
+        ("Men Without Women", date("2007-09-28")),
     ]);
     let episodes_3 = HashMap::from([
-        ("From Hell", "2008-11-21"),
-        ("Are We Not Men?", "2008-11-28"),
-        ("Tramps Like Us", "2008-12-05"),
-        ("The Speech", "2008-12-12"),
-        ("Friendface", "2008-12-19"),
-        ("Calendar Geeks", "2008-12-26"),
+        ("From Hell", date("2008-11-21")),
+        ("Are We Not Men?", date("2008-11-28")),
+        ("Tramps Like Us", date("2008-12-05")),
+        ("The Speech", date("2008-12-12")),
+        ("Friendface", date("2008-12-19")),
+        ("Calendar Geeks", date("2008-12-26")),
     ]);
     let episodes_4 = HashMap::from([
-        ("Jen The Fredo", "2010-06-25"),
-        ("The Final Countdown", "2010-07-02"),
-        ("Something Happened", "2010-07-09"),
-        ("Italian For Beginners", "2010-07-16"),
-        ("Bad Boys", "2010-07-23"),
-        ("Reynholm vs Reynholm", "2010-07-30"),
+        ("Jen The Fredo", date("2010-06-25")),
+        ("The Final Countdown", date("2010-07-02")),
+        ("Something Happened", date("2010-07-09")),
+        ("Italian For Beginners", date("2010-07-16")),
+        ("Bad Boys", date("2010-07-23")),
+        ("Reynholm vs Reynholm", date("2010-07-30")),
     ]);
     let episodes_data = vec![episodes_1, episodes_2, episodes_3, episodes_4];
     let mut episodes = Vec::new();
@@ -87,33 +87,33 @@ pub fn get_data_for_it_crowd() -> YdbResult<(Value, Value, Value)> {
                 "season_id" => Value::Bytes(Bytes::from(&(*seasons_ids[i]))),
                 "episode_id" => Value::Bytes(Bytes::from(Uuid::new_v4().to_string())),
                 "title" => (*k),
-                "air_date" => (*v),
+                "air_date" => Value::Date((*v)),
             ))
         }
     }
 
     let series_example = ydb_struct!(
-        "series_id" => Value::Bytes(vec![].into()), // empty bytes for type
-        "title" => "", // empty string for type
-        "series_info" => "", // empty string for type
-        "release_date" => "2006-02-21", // current time for type
+        "series_id" => Value::Bytes(vec![].into()),
+        "title" => "",
+        "series_info" => "",
+        "release_date" => Value::Date(date("2006-02-21")),
         "comment" => ""
     );
 
     let season_example = ydb_struct!(
-        "series_id" => Value::Bytes(vec![].into()), // empty bytes for type
-        "season_id" => Value::Bytes(vec![].into()), // empty bytes for type
-        "title" => "", // empty string for type
-        "first_aired"=> "2006-02-21",
-        "last_aired"=> "2006-02-21",
+        "series_id" => Value::Bytes(vec![].into()),
+        "season_id" => Value::Bytes(vec![].into()),
+        "title" => "",
+        "first_aired"=> Value::Date(date("2006-02-21")),
+        "last_aired"=> Value::Date(date("2006-02-21")),
     );
 
     let episode_example = ydb_struct!(
-        "series_id" => Value::Bytes(vec![].into()), // empty bytes for type
-        "season_id" => Value::Bytes(vec![].into()), // empty bytes for type
-        "episode_id" => Value::Bytes(vec![].into()), // empty bytes for type
-        "title" => "", // empty string for type
-        "air_date"=> "2006-02-21",
+        "series_id" => Value::Bytes(vec![].into()),
+        "season_id" => Value::Bytes(vec![].into()),
+        "episode_id" => Value::Bytes(vec![].into()),
+        "title" => "",
+        "air_date"=> Value::Date(date("2006-02-21")),
     );
 
     let list_series = Value::list_from(series_example, vec![series])?;
@@ -127,10 +127,10 @@ pub fn get_data_for_silicon_valley() -> YdbResult<(Value, Value, Value)> {
     let series_id = Uuid::new_v4().to_string();
     let series = ydb_struct!(
         "series_id" => Value::Bytes(Bytes::from(series_id.clone())),
-        "release_date" => "2014-04-06",
         "title" => "Silicon Valley",
         "series_info" => "Silicon Valley is an American comedy television series created by Mike Judge, John Altschuler and \
          Dave Krinsky. The series focuses on five young men who founded a startup company in Silicon Valley.",
+        "release_date" => Value::Date(date("2014-04-06")),
         "comment" => ""
     );
 
@@ -141,97 +141,97 @@ pub fn get_data_for_silicon_valley() -> YdbResult<(Value, Value, Value)> {
             "series_id" => Value::Bytes(Bytes::from(series_id.clone())),
             "season_id" => Value::Bytes(Bytes::from(&(*seasons_ids[0]))),
             "title"=> "Season 1",
-            "first_aired"=> "2006-02-03",
-            "last_aired"=> "2006-03-03",
+            "first_aired"=> Value::Date(date("2006-02-03")),
+            "last_aired"=> Value::Date(date("2006-03-03")),
         ),
         ydb_struct!(
             "series_id" => Value::Bytes(Bytes::from(series_id.clone())),
             "season_id" => Value::Bytes(Bytes::from(&(*seasons_ids[1]))),
             "title"=> "Season 2",
-            "first_aired"=> "2007-08-24",
-            "last_aired"=> "2007-09-28",
+            "first_aired"=> Value::Date(date("2007-08-24")),
+            "last_aired"=> Value::Date(date("2007-09-28")),
         ),
         ydb_struct!(
             "series_id" => Value::Bytes(Bytes::from(series_id.clone())),
             "season_id" => Value::Bytes(Bytes::from(&(*seasons_ids[2]))),
             "title"=> "Season 3",
-            "first_aired"=> "2008-11-21",
-            "last_aired"=> "2008-12-26",
+            "first_aired"=> Value::Date(date("2008-11-21")),
+            "last_aired"=> Value::Date(date("2008-12-26")),
         ),
         ydb_struct!(
             "series_id" => Value::Bytes(Bytes::from(series_id.clone())),
             "season_id" => Value::Bytes(Bytes::from(&(*seasons_ids[3]))),
             "title"=> "Season 4",
-            "first_aired"=> "2010-06-25",
-            "last_aired"=> "2010-07-30",
+            "first_aired"=> Value::Date(date("2010-06-25")),
+            "last_aired"=> Value::Date(date("2010-07-30")),
         ),
         ydb_struct!(
             "series_id" => Value::Bytes(Bytes::from(series_id.clone())),
             "season_id" => Value::Bytes(Bytes::from(&(*seasons_ids[3]))),
             "title"=> "Season 5",
-            "first_aired"=> "2010-06-25",
-            "last_aired"=> "2010-07-30",
+            "first_aired"=> Value::Date(date("2010-06-25")),
+            "last_aired"=> Value::Date(date("2010-07-30")),
         ),
     ];
 
     let episodes_1 = HashMap::from([
-        ("Minimum Viable Product", "2014-04-06"),
-        ("The Cap Table", "2014-04-13"),
-        ("Articles of Incorporation", "2014-04-20"),
-        ("Fiduciary Duties", "2014-04-27"),
-        ("Signaling Risk", "2014-05-04"),
-        ("Third Party Insourcing", "2014-05-11"),
-        ("Proof of Concept", "2014-05-18"),
-        ("Optimal Tip-to-Tip Efficiency", "2014-06-01"),
+        ("Minimum Viable Product", date("2014-04-06")),
+        ("The Cap Table", date("2014-04-13")),
+        ("Articles of Incorporation", date("2014-04-20")),
+        ("Fiduciary Duties", date("2014-04-27")),
+        ("Signaling Risk", date("2014-05-04")),
+        ("Third Party Insourcing", date("2014-05-11")),
+        ("Proof of Concept", date("2014-05-18")),
+        ("Optimal Tip-to-Tip Efficiency", date("2014-06-01")),
     ]);
     let episodes_2 = HashMap::from([
-        ("Sand Hill Shuffle", "2015-04-12"),
-        ("Runaway Devaluation", "2015-04-19"),
-        ("Bad Money", "2015-04-26"),
-        ("The Lady", "2015-05-03"),
-        ("Server Space", "2015-05-10"),
-        ("Homicide", "2015-05-17"),
-        ("Adult Content", "2015-05-24"),
-        ("White Hat/Black Hat", "2015-05-31"),
-        ("Binding Arbitration", "2015-06-07"),
-        ("Two Days of the Condor", "2015-06-14"),
+        ("Sand Hill Shuffle", date("2015-04-12")),
+        ("Runaway Devaluation", date("2015-04-19")),
+        ("Bad Money", date("2015-04-26")),
+        ("The Lady", date("2015-05-03")),
+        ("Server Space", date("2015-05-10")),
+        ("Homicide", date("2015-05-17")),
+        ("Adult Content", date("2015-05-24")),
+        ("White Hat/Black Hat", date("2015-05-31")),
+        ("Binding Arbitration", date("2015-06-07")),
+        ("Two Days of the Condor", date("2015-06-14")),
     ]);
 
     let episodes_3 = HashMap::from([
-        ("Founder Friendly", "2016-04-24"),
-        ("Two in the Box", "2016-05-01"),
-        ("Meinertzhagen's Haversack", "2016-05-08"),
-        ("Maleant Data Systems Solutions", "2016-05-15"),
-        ("The Empty Chair", "2016-05-22"),
-        ("Bachmanity Insanity", "2016-05-29"),
-        ("To Build a Better Beta", "2016-06-05"),
-        ("Bachman's Earnings Over-Ride", "2016-06-12"),
-        ("Daily Active Users", "2016-06-19"),
-        ("The Uptick", "2016-06-26"),
+        ("Founder Friendly", date("2016-04-24")),
+        ("Two in the Box", date("2016-05-01")),
+        ("Meinertzhagen's Haversack", date("2016-05-08")),
+        ("Maleant Data Systems Solutions", date("2016-05-15")),
+        ("The Empty Chair", date("2016-05-22")),
+        ("Bachmanity Insanity", date("2016-05-29")),
+        ("To Build a Better Beta", date("2016-06-05")),
+        ("Bachman's Earnings Over-Ride", date("2016-06-12")),
+        ("Daily Active Users", date("2016-06-19")),
+        ("The Uptick", date("2016-06-26")),
     ]);
 
     let episodes_4 = HashMap::from([
-        ("Success Failure", "2017-04-23"),
-        ("Terms of Service", "2017-04-30"),
-        ("Intellectual Property", "2017-05-07"),
-        ("Teambuilding Exercise", "2017-05-14"),
-        ("The Blood Boy", "2017-05-21"),
-        ("Customer Service", "2017-05-28"),
-        ("The Patent Troll", "2017-06-04"),
-        ("The Keenan Vortex", "2017-06-11"),
-        ("Hooli-Con", "2017-06-18"),
-        ("Server Error", "2017-06-25"),
+        ("Success Failure", date("2017-04-23")),
+        ("Terms of Service", date("2017-04-30")),
+        ("Intellectual Property", date("2017-05-07")),
+        ("Teambuilding Exercise", date("2017-05-14")),
+        ("The Blood Boy", date("2017-05-21")),
+        ("Customer Service", date("2017-05-28")),
+        ("The Patent Troll", date("2017-06-04")),
+        ("The Keenan Vortex", date("2017-06-11")),
+        ("Hooli-Con", date("2017-06-18")),
+        ("Server Error", date("2017-06-25")),
     ]);
 
     let episodes_5 = HashMap::from([
-        ("Grow Fast or Die Slow", "2018-03-25"),
-        ("Reorientation", "2018-04-01"),
-        ("Chief Operating Officer", "2018-04-08"),
-        ("Tech Evangelist", "2018-04-15"),
-        ("Facial Recognition", "2018-04-22"),
-        ("Artificial Emotional Intelligence", "2018-04-29"),
-        ("Initial Coin Offering", "2018-05-06"),
-        ("Fifty-One Percent", "2018-05-13"),
+        ("Grow Fast or Die Slow", date("2018-03-25")),
+        ("Reorientation", date("2018-04-01")),
+        ("Chief Operating Officer", date("2018-04-08")),
+        ("Tech Evangelist", date("2018-04-15")),
+        ("Facial Recognition", date("2018-04-22")),
+        ("Artificial Emotional Intelligence", date("2018-04-29")),
+        ("Initial Coin Offering", date("2018-05-06")),
+        ("Fifty-One Percent", date("2018-05-13")),
     ]);
 
     let episodes_data = vec![episodes_1, episodes_2, episodes_3, episodes_4, episodes_5];
@@ -244,33 +244,33 @@ pub fn get_data_for_silicon_valley() -> YdbResult<(Value, Value, Value)> {
                 "season_id" => Value::Bytes(Bytes::from(&(*seasons_ids[i]))),
                 "episode_id" => Value::Bytes(Bytes::from(Uuid::new_v4().to_string())),
                 "title" => (*k),
-                "air_date" => (*v),
+                "air_date" => Value::Date(*v),
             ))
         }
     }
 
     let series_example = ydb_struct!(
-        "series_id" => Value::Bytes(vec![].into()), // empty bytes for type
-        "title" => "", // empty string for type
-        "series_info" => "", // empty string for type
-        "release_date" => "2006-02-21", // current time for type
+        "series_id" => Value::Bytes(vec![].into()),
+        "title" => "",
+        "series_info" => "",
+        "release_date" => Value::Date(date("2006-02-21")),
         "comment" => ""
     );
 
     let season_example = ydb_struct!(
-        "series_id" => Value::Bytes(vec![].into()), // empty bytes for type
-        "season_id" => Value::Bytes(vec![].into()), // empty bytes for type
-        "title" => "", // empty string for type
-        "first_aired"=> "2006-02-21",
-        "last_aired"=> "2006-02-21",
+        "series_id" => Value::Bytes(vec![].into()),
+        "season_id" => Value::Bytes(vec![].into()),
+        "title" => "",
+        "first_aired"=> Value::Date(date("2006-02-21")),
+        "last_aired"=> Value::Date(date("2006-02-21")),
     );
 
     let episode_example = ydb_struct!(
-        "series_id" => Value::Bytes(vec![].into()), // empty bytes for type
-        "season_id" => Value::Bytes(vec![].into()), // empty bytes for type
-        "episode_id" => Value::Bytes(vec![].into()), // empty bytes for type
-        "title" => "", // empty string for type
-        "air_date"=> "2006-02-21",
+        "series_id" => Value::Bytes(vec![].into()),
+        "season_id" => Value::Bytes(vec![].into()),
+        "episode_id" => Value::Bytes(vec![].into()),
+        "title" => "",
+        "air_date"=> Value::Date(date("2006-02-21")),
     );
 
     let list_series = Value::list_from(series_example, vec![series])?;
@@ -280,7 +280,7 @@ pub fn get_data_for_silicon_valley() -> YdbResult<(Value, Value, Value)> {
     Ok((list_series, list_seasons, list_episodes))
 }
 
-fn _date(date_str: &str) -> SystemTime {
+fn date(date_str: &str) -> SystemTime {
     const DATE_ISO8601: &str = "%Y-%m-%d";
     let datetime = chrono::NaiveDate::parse_from_str(date_str, DATE_ISO8601)
         .unwrap_or_else(|_| panic!("Invalid date format: {}", date_str))
@@ -289,3 +289,5 @@ fn _date(date_str: &str) -> SystemTime {
 
     SystemTime::UNIX_EPOCH + Duration::from_secs(datetime.timestamp() as u64)
 }
+
+fn main() {}

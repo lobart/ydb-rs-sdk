@@ -27,8 +27,8 @@ async fn main() -> YdbResult<()> {
     fill_tables(&mut query_client, series, seasons, episodes).await?;
     let (series, seasons, episodes) = get_data_for_silicon_valley()?;
     fill_tables(&mut query_client, series, seasons, episodes).await?;
-    //read(&mut query_client, table_name).await?;
-
+    println!("Tables are filled");
+    read(&mut query_client).await?;
     println!("OK");
 
     Ok(())
@@ -41,7 +41,7 @@ async fn create_tables(client: &mut QueryClient) -> YdbResult<()> {
 			series_id Bytes,
 			title Text,
 			series_info Text,
-			release_date Text,
+			release_date Date,
 			comment Text,
 
 			PRIMARY KEY(series_id));"
@@ -52,8 +52,8 @@ async fn create_tables(client: &mut QueryClient) -> YdbResult<()> {
 			series_id Bytes,
 			season_id Bytes,
 			title Text,
-			first_aired Text,
-			last_aired Text,
+			first_aired Date,
+			last_aired Date,
 
 			PRIMARY KEY(series_id,season_id));"
     ));
@@ -64,14 +64,14 @@ async fn create_tables(client: &mut QueryClient) -> YdbResult<()> {
 			season_id Bytes,
 			episode_id Bytes,
 			title Text,
-			air_date Text,
+			air_date Date,
 
 			PRIMARY KEY(series_id,season_id,episode_id));"
     ));
 
-    client.execute_query(query_series).await?;
-    client.execute_query(query_seasons).await?;
-    client.execute_query(query_episodes).await?;
+    execute_and_print_raws(client, query_series).await?;
+    execute_and_print_raws(client, query_seasons).await?;
+    execute_and_print_raws(client, query_episodes).await?;
 
     Ok(())
 }
@@ -88,7 +88,7 @@ async fn fill_tables(
 			series_id: Bytes,
 			title: Text,
 			series_info: Text,
-			release_date: Text,
+			release_date: Date,
 			comment: Text>>;
 
 		REPLACE INTO {prefix}
@@ -110,8 +110,8 @@ async fn fill_tables(
 			series_id: Bytes,
 			season_id: Bytes,
 			title: Text,
-			first_aired: Text,
-			last_aired: Text>>;
+			first_aired: Date,
+			last_aired: Date>>;
 
 		REPLACE INTO {prefix}
 		SELECT
@@ -133,7 +133,7 @@ async fn fill_tables(
 			season_id: Bytes,
 			episode_id: Bytes,
 			title: Text,
-			air_date: Text>>;
+			air_date: Date>>;
 
 		REPLACE INTO {prefix}
 		SELECT
@@ -147,18 +147,18 @@ async fn fill_tables(
     .with_params(ydb_params!(
         "$episodes_list" => episodes
     ));
-    client.execute_query(query_fill_series).await?;
-    client.execute_query(query_fill_seasons).await?;
-    client.execute_query(query_fill_episodes).await?;
+    execute_and_print_raws(client, query_fill_series).await?;
+    execute_and_print_raws(client, query_fill_seasons).await?;
+    execute_and_print_raws(client, query_fill_episodes).await?;
 
     Ok(())
 }
 
-async fn _read(client: &mut QueryClient) -> YdbResult<()> {
-    let table_path = "series";
-    let commit_tx = false;
+async fn read(client: &mut QueryClient) -> YdbResult<()> {
+    let table_path = "`/local/series`";
+    let commit_tx = true;
     let query = Query::new(format!(
-        "SELECT series_id, title, release_date FROM `{table_path}`"
+        "SELECT series_id, title, release_date FROM {table_path};"
     ))
     .with_tx_control(
         commit_tx,
@@ -166,8 +166,19 @@ async fn _read(client: &mut QueryClient) -> YdbResult<()> {
             tx_mode: Some(TxMode::SnapshotReadOnly(SnapshotModeSettings {})),
         })),
     );
-    // Execute query with snapshot read-only transaction
-    let _result = client.execute_query(query).await?;
+    execute_and_print_raws(client, query).await
+}
 
+async fn execute_and_print_raws(client: &mut QueryClient, query_series: Query) -> YdbResult<()> {
+    while let Some(result) = client
+        .execute_query(query_series.clone())
+        .await?
+        .next()
+        .await?
+    {
+        for row in result.rows() {
+            println!("{:?}", row);
+        }
+    }
     Ok(())
 }

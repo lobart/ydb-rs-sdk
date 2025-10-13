@@ -1,8 +1,6 @@
 use crate::grpc_wrapper::raw_errors::RawError;
-use crate::grpc_wrapper::raw_table_service::value::r#type::{decode_err, RawType};
-use crate::grpc_wrapper::raw_table_service::value::{
-    RawColumn, RawResultSet, RawTypedValue, RawValue, RawValuePair,
-};
+use crate::grpc_wrapper::value::r#type::{decode_err, RawType};
+use crate::grpc_wrapper::value::{RawColumn, RawResultSet, RawTypedValue, RawValue, RawValuePair};
 use itertools::Itertools;
 use ydb_grpc::ydb_proto::value::Value as Primitive;
 use ydb_grpc::ydb_proto::Value as ProtoValue;
@@ -11,8 +9,8 @@ impl TryFrom<ProtoValue> for RawValue {
     type Error = RawError;
 
     fn try_from(value: ProtoValue) -> Result<Self, Self::Error> {
-        use crate::grpc_wrapper::raw_table_service::value::RawValue::*;
-        use crate::grpc_wrapper::raw_table_service::value::RawVariantValue;
+        use crate::grpc_wrapper::value::RawValue::*;
+        use crate::grpc_wrapper::value::RawVariantValue;
 
         if let Some(simple) = value.value {
             let res = match simple {

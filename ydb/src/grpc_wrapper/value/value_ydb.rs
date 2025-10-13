@@ -9,8 +9,8 @@ use uuid::Uuid;
 
 use super::r#type::DecimalType;
 use crate::grpc_wrapper::raw_errors::{RawError, RawResult};
-use crate::grpc_wrapper::raw_table_service::value::r#type::{RawType, StructMember, StructType};
-use crate::grpc_wrapper::raw_table_service::value::{RawTypedValue, RawValue};
+use crate::grpc_wrapper::value::r#type::{RawType, StructMember, StructType};
+use crate::grpc_wrapper::value::{RawTypedValue, RawValue};
 use crate::types::SECONDS_PER_DAY;
 use crate::{Bytes, SignedInterval, Value};
 

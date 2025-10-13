@@ -1,3 +1,27 @@
+use std::sync::atomic::{AtomicI64, Ordering};
+
+use derivative::Derivative;
+use futures_util::StreamExt;
+use itertools::Itertools;
+use tonic::Streaming;
+use tracing::{debug, trace};
+
+use ydb_grpc::ydb_proto::query::transaction_settings::TxMode;
+use ydb_grpc::ydb_proto::query::v1::query_service_client::QueryServiceClient;
+use ydb_grpc::ydb_proto::query::{
+    execute_query_request, AttachSessionRequest,
+    CommitTransactionRequest as CommitTransactionQueryServiceRequest, DeleteSessionRequest,
+    ExecuteQueryRequest, ExecuteQueryResponsePart,
+    RollbackTransactionRequest as RollbackTransactionQueryServiceRequest, SessionState, Syntax,
+    TransactionControl, TransactionSettings,
+};
+use ydb_grpc::ydb_proto::table::v1::table_service_client::TableServiceClient;
+use ydb_grpc::ydb_proto::table::{
+    execute_scan_query_request, ExecuteScanQueryPartialResponse, ExecuteScanQueryRequest,
+};
+use ydb_grpc::ydb_proto::topic::Codec::Raw;
+use ydb_grpc::ydb_proto::TypedValue;
+
 use crate::client::TimeoutSettings;
 use crate::client_table::TableServiceClientType;
 use crate::errors::{YdbError, YdbResult};
@@ -24,30 +48,11 @@ use crate::grpc_wrapper::raw_table_service::execute_scheme_query::RawExecuteSche
 use crate::grpc_wrapper::raw_table_service::keepalive::RawKeepAliveRequest;
 use crate::grpc_wrapper::raw_table_service::rollback_transaction::RawRollbackTransactionRequest as RawRollbackTransactionTableRequest;
 use crate::grpc_wrapper::runtime_interceptors::InterceptedChannel;
-use crate::result::{QueryResult, StreamResult};
+use crate::result::{QueryResult, StreamQueryResult, StreamResult, StreamTableResult};
 use crate::table_service_types::CopyTableItem;
 use crate::trace_helpers::ensure_len_string;
 use crate::types::Value;
 use crate::Query;
-use derivative::Derivative;
-use futures_util::StreamExt;
-use itertools::Itertools;
-use std::sync::atomic::{AtomicI64, Ordering};
-use tonic::Streaming;
-use tracing::{debug, trace};
-use ydb_grpc::ydb_proto::query::transaction_settings::TxMode;
-use ydb_grpc::ydb_proto::query::v1::query_service_client::QueryServiceClient;
-use ydb_grpc::ydb_proto::query::{
-    execute_query_request, AttachSessionRequest,
-    CommitTransactionRequest as CommitTransactionQueryServiceRequest, DeleteSessionRequest,
-    ExecuteQueryRequest, ExecuteQueryResponsePart,
-    RollbackTransactionRequest as RollbackTransactionQueryServiceRequest, SessionState, Syntax,
-    TransactionControl, TransactionSettings,
-};
-use ydb_grpc::ydb_proto::table::v1::table_service_client::TableServiceClient;
-use ydb_grpc::ydb_proto::table::{execute_scan_query_request, ExecuteScanQueryRequest};
-use ydb_grpc::ydb_proto::topic::Codec::Raw;
-use ydb_grpc::ydb_proto::TypedValue;
 
 static REQUEST_NUMBER: AtomicI64 = AtomicI64::new(0);
 static DEFAULT_COLLECT_STAT_MODE: CollectStatsMode = CollectStatsMode::None;
@@ -277,7 +282,7 @@ impl TableSession {
     }
 
     #[tracing::instrument(skip(self, query), fields(req_number=req_number()))]
-    pub async fn execute_scan_query(&mut self, query: Query) -> YdbResult<StreamResult> {
+    pub async fn execute_scan_query(&mut self, query: Query) -> YdbResult<StreamTableResult> {
         let params = query.clone().params_to_proto()?;
         let req = ExecuteScanQueryRequest {
             query: Some(query.query_to_table_proto()),
@@ -292,7 +297,8 @@ impl TableSession {
         let mut channel = self.get_channel().await?;
         let resp = channel.stream_execute_scan_query(req).await?;
         let stream = resp.into_inner();
-        Ok(StreamResult { results: stream })
+        let res = StreamTableResult { results: stream };
+        Ok(res)
     }
 
     pub async fn copy_table(
@@ -367,7 +373,7 @@ impl SessionInterface<QueryServiceSessionClient> for QueryServiceSession {
 }
 
 impl QueryServiceSession {
-    pub async fn attach_session(&mut self) -> YdbResult<(Streaming<SessionState>)> {
+    pub async fn attach_session(&mut self) -> YdbResult<Streaming<SessionState>> {
         let mut client = self.get_client().await?;
         let attach_session_req = AttachSessionRequest {
             session_id: self.id.clone(),
@@ -385,18 +391,7 @@ impl QueryServiceSession {
         Ok(stream)
     }
 
-    pub async fn _delete_session(&mut self) -> YdbResult<()> {
-        let mut client = self.get_client().await?;
-        let req = DeleteSessionRequest {
-            session_id: self.id.clone(),
-        };
-        client.delete_session(req).await?;
-        Ok(())
-    }
-    pub async fn execute_query(
-        &mut self,
-        query: Query,
-    ) -> YdbResult<Vec<ExecuteQueryResponsePart>> {
+    pub async fn execute_query(&mut self, query: Query) -> YdbResult<StreamQueryResult> {
         let mut client = self.get_client().await?;
         let execute_query_req: ExecuteQueryRequest = ExecuteQueryRequest {
             session_id: self.id.clone(),
@@ -408,17 +403,8 @@ impl QueryServiceSession {
             ..ExecuteQueryRequest::default()
         };
         let mut stream = client.execute_query_stream(execute_query_req).await?;
-        let mut result = vec![];
-        while let Some(res) = stream.next().await {
-            match res {
-                Ok(part) => {
-                    println!("Result is saved!{:?}", part);
-                    result.push(part)
-                }
-                Err(_) => return Ok(result),
-            }
-        }
-        Ok(result)
+        let res = StreamQueryResult { results: stream };
+        Ok(res)
     }
 }
 

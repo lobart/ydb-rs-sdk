@@ -1,5 +1,5 @@
 use crate::grpc_wrapper::raw_errors::{RawError, RawResult};
-use crate::grpc_wrapper::raw_query_service::value::RawTypedValue;
+use crate::grpc_wrapper::value::RawTypedValue;
 use crate::types::Value;
 use ydb_grpc::ydb_proto::TypedValue;
 

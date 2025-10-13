@@ -5,7 +5,7 @@ pub(crate) mod proto;
 pub(crate) mod r#type;
 pub(crate) mod value_ydb;
 
-use crate::grpc_wrapper::raw_table_service::value::r#type::RawType;
+use crate::grpc_wrapper::value::r#type::RawType;
 use crate::trace_helpers::ensure_len_string;
 use std::fmt::{Debug, Formatter};
 
@@ -36,14 +36,14 @@ pub(crate) enum RawValue {
 
 #[derive(Clone, Debug, PartialEq, serde::Serialize)]
 pub(crate) struct RawValuePair {
-    pub(in crate::grpc_wrapper::raw_table_service) key: RawValue,
-    pub(in crate::grpc_wrapper::raw_table_service) payload: RawValue,
+    pub(in crate::grpc_wrapper) key: RawValue,
+    pub(in crate::grpc_wrapper) payload: RawValue,
 }
 
 #[derive(Clone, Debug, PartialEq, serde::Serialize)]
 pub(crate) struct RawVariantValue {
-    pub(in crate::grpc_wrapper::raw_table_service) value: RawValue,
-    pub(in crate::grpc_wrapper::raw_table_service) index: u32,
+    pub(in crate::grpc_wrapper) value: RawValue,
+    pub(in crate::grpc_wrapper) index: u32,
 }
 
 //

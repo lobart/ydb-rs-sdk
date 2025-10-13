@@ -92,6 +92,9 @@ pub enum YdbError {
     /// No rows in result set
     NoRows,
 
+    /// Empty response
+    EmptyResponse,
+
     /// Unexpected error. Write issue if it will happen.
     InternalError(String),
 
@@ -248,6 +251,7 @@ impl YdbError {
             Self::Convert(_) => NeedRetry::False,
             Self::Custom(_) => NeedRetry::False,
             Self::InternalError(_) => NeedRetry::False,
+            Self::EmptyResponse => NeedRetry::False,
             Self::NoRows => NeedRetry::False,
             Self::TransportDial(_) => NeedRetry::True,
             Self::Transport(_) => IdempotentOnly, // TODO: check when transport error created
