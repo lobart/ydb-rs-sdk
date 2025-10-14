@@ -170,9 +170,10 @@ async fn read(client: &mut QueryClient) -> YdbResult<()> {
 }
 
 async fn execute_and_print_raws(client: &mut QueryClient, query_series: Query) -> YdbResult<()> {
-    while let Some(result) = client
-        .execute_query(query_series.clone())
-        .await?
+    let mut res = client
+    .execute_query(query_series.clone())
+    .await?;
+    while let Some(result) = res
         .next()
         .await?
     {

@@ -248,11 +248,11 @@ impl StreamResultTrait for ExecuteScanQueryPartialResponse {
 
 impl<T: StreamResultTrait> StreamResult<T> {
     pub async fn next(&mut self) -> YdbResult<Option<ResultSet>> {
-        let partial_response = self
-            .results
-            .message()
-            .await?
-            .ok_or(YdbError::EmptyResponse)?;
+        let partial_response = if let Some(partial_response) = self.results.message().await? {
+            partial_response
+        } else {
+            return Ok(None);
+        };
 
         let status = partial_response.status()?;
 

@@ -10,7 +10,7 @@ use ydb_grpc::ydb_proto::query::transaction_settings::TxMode;
 use ydb_grpc::ydb_proto::query::SessionState;
 
 use crate::client::TimeoutSettings;
-use crate::client_table::{Retry, TimeoutRetrier};
+use crate::retrier::{Retry, TimeoutRetrier};
 use crate::errors::NeedRetry;
 use crate::grpc_connection_manager::GrpcConnectionManager;
 use crate::result::StreamQueryResult;
@@ -41,7 +41,7 @@ impl QueryClient {
                 timeouts,
             ),
             active_session: None,
-            retrier: Arc::new(Box::<crate::client_table::TimeoutRetrier>::default()),
+            retrier: Arc::new(Box::<crate::retrier::TimeoutRetrier>::default()),
             transaction_options: TransactionOptions::new(),
             idempotent_operation: false,
             timeouts,
@@ -75,7 +75,7 @@ impl QueryClient {
     #[allow(dead_code)]
     pub fn clone_with_no_retry(&self) -> Self {
         Self {
-            retrier: Arc::new(Box::new(crate::client_table::NoRetrier {})),
+            retrier: Arc::new(Box::new(crate::retrier::NoRetrier {})),
             ..self.clone()
         }
     }
@@ -128,7 +128,7 @@ impl QueryClient {
             let now = std::time::Instant::now();
             let retry_decision = self
                 .retrier
-                .wait_duration(crate::client_table::RetryParams {
+                .wait_duration(crate::retrier::RetryParams {
                     attempt,
                     time_from_start: now.duration_since(start),
                 });

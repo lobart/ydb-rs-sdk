@@ -68,6 +68,7 @@ mod grpc_wrapper;
 mod load_balancer;
 mod pub_traits;
 pub(crate) mod query;
+pub(crate) mod retrier;
 pub(crate) mod result;
 mod session;
 mod session_pool;

@@ -847,7 +847,7 @@ FROM
     let mut sum: i64 = 0;
     let mut item_count = 0;
     let mut result_set_count = 0;
-    while let Some(result_set) = res.next().await.ok() {
+    while let Some(result_set) = res.next().await? {
         result_set_count += 1;
 
         for mut row in result_set.into_iter() {
