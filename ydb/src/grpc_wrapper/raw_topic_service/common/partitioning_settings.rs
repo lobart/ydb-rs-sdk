@@ -21,7 +21,7 @@ impl From<RawPartitioningSettings> for PartitioningSettings {
             min_active_partitions: value.min_active_partitions,
             partition_count_limit: value.partition_count_limit,
             max_active_partitions: value.min_active_partitions,
-            auto_partitioning_settings: None
+            auto_partitioning_settings: None,
         }
     }
 }
@@ -47,7 +47,7 @@ impl From<RawAlterPartitioningSettings> for AlterPartitioningSettings {
             set_min_active_partitions: value.set_min_active_partitions,
             set_partition_count_limit: value.set_partition_count_limit,
             set_max_active_partitions: None,
-            alter_auto_partitioning_settings: None
+            alter_auto_partitioning_settings: None,
         }
     }
 }
