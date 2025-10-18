@@ -34,6 +34,5 @@ jobs:
           toolchain: ${{env.RUST_VERSION}}
 
       - name: Yank crate version
-        id:
         run: |
           cargo yank ${{ github.event.inputs.crate }}@${{ github.event.inputs.version }}
