@@ -1,0 +1,39 @@
+name: Yank published crate from crates.io
+env:
+  CARGO_TERM_COLOR: always
+  RUST_VERSION: 1.90.0
+  CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+
+on:
+  workflow_dispatch:
+    inputs:
+      crate:
+        description: Yank crate version on crates.io
+        required: true
+        type: choice
+        default: ydb
+        options:
+          - ydb
+          - ydb-grpc
+          - ydb-grpc-helpers
+      version:
+        description: "Version of the crate"
+        required: true
+        type: string
+        default:
+
+jobs:
+  publishCrate:
+    runs-on: ubuntu-24.04
+    env:
+      CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+    steps:
+      - name: Install fixed rust version
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: ${{env.RUST_VERSION}}
+
+      - name: Yank crate version
+        id:
+        run: |
+          cargo yank ${{ github.event.inputs.crate }}@${{ github.event.inputs.version }}
