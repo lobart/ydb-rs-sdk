@@ -72,7 +72,7 @@ pub fn connect_lazy(uri: Uri, tls_config: &Option<ClientTlsConfig>) -> YdbResult
     let uri = normalize_uri_scheme(uri)?;
 
     let tls = uri.scheme() == Some(&Scheme::HTTPS);
-    trace!("scheme is {}", uri.scheme().unwrap_or(&Scheme::HTTP));
+    trace!("scheme is {:?}", uri.scheme());
 
     let mut endpoint = Endpoint::from(uri.clone());
 
