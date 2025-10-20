@@ -99,6 +99,9 @@ pub(crate) mod waiter;
 #[cfg(test)]
 mod types_test;
 
+#[cfg(test)]
+mod connection_pool_test;
+
 pub use client_coordination::client::CoordinationClient;
 pub use client_coordination::list_types::{
     ConsistencyMode, NodeConfig, NodeConfigBuilder, NodeDescription, RateLimiterCountersMode,
