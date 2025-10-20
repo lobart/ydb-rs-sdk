@@ -68,7 +68,7 @@ struct ConnectionInfo {
     channel: Channel,
 }
 
-pub(crate) fn connect_lazy(uri: Uri, tls_config: &Option<ClientTlsConfig>) -> YdbResult<Channel> {
+pub fn connect_lazy(uri: Uri, tls_config: &Option<ClientTlsConfig>) -> YdbResult<Channel> {
     let uri = normalize_uri_scheme(uri)?;
 
     let tls = uri.scheme() == Some(&Scheme::HTTPS);
