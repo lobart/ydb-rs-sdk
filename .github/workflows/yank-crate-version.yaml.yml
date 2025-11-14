@@ -1,7 +1,7 @@
 name: Yank published crate from crates.io
 env:
   CARGO_TERM_COLOR: always
-  RUST_VERSION: 1.90.0
+  RUST_VERSION: 1.91.0
   CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
 
 on:
